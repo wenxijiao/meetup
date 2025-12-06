@@ -81,7 +81,7 @@ if start_btn:
             # time.sleep(1)
         
         st.success("✅ Round Started! Participants can now see their tables.")
-        # time.sleep(1.5)
+        time.sleep(4)
         st.rerun()
 
 st.write("")

@@ -1,3 +1,5 @@
+import math
+import random
 from pathlib import Path
 from datetime import date
 from data.data_structure import Participant
@@ -76,7 +78,43 @@ def batch_update_participants(participants):
     batch.commit()
 
 def start_next_round(target_per_table: int, min_per_table: int):
-    pass
+    active_participants = get_active_participants()
+    total_count = len(active_participants)
+    if total_count == 0:
+        return
+
+    # --- 1. 简单的桌数计算 ---
+    # 比如 13人 / 4 = 4桌
+    num_tables = math.ceil(total_count / target_per_table)
+    
+    # 修正：如果算出来的桌子导致平均人数太少 (比如 5人分2桌，平均2.5 < min 3)，就减一桌
+    if num_tables > 1 and (total_count / num_tables) < min_per_table:
+        num_tables -= 1
+        
+    num_tables = max(1, num_tables) # 保底 1 桌
+
+    # --- 2. 随机打乱 (Shuffle) ---
+    # 这一步保证了每次分桌结果都不一样
+    random.shuffle(active_participants)
+
+    # --- 3. 发牌分配 (Round-Robin) ---
+    # 0, 1, 2, 0, 1, 2... 这样循环发
+    for i, p in enumerate(active_participants):
+        # 计算桌号 (从 1 开始)
+        table_no = str((i % num_tables) + 1)
+        
+        # 更新内存中的对象状态
+        p.table_number = table_no
+        # (最简版暂时不更新 history，先只看桌号变化)
+
+    # --- 4. 批量保存到数据库 ---
+    # 这一步做完，用户手机上的界面就会自动刷新了
+    batch_update_participants(active_participants)
 
 def reset_event():
-    pass
+    participants = get_active_participants()
+    for p in participants:
+        p.table_number = None
+        
+    batch_update_participants(participants)
+    

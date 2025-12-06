@@ -22,7 +22,7 @@ else:
     with col1:
         st.write(f"👤 **{name}**")
     with col2:
-        if st.button("退出 / Logout", type="secondary", use_container_width=True):
+        if st.button("ログアウト / Logout", type="secondary", use_container_width=True):
             logout_user(current_id)
             st.session_state.role = "Select your role"
             st.rerun()
@@ -45,6 +45,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.caption("活动还未开始，请等待管理员开始活动...")
+        st.caption("The event has not started yet. Please wait for the organizer to begin...")
+        st.caption("イベントはまだ開始していません、主催者が開始するまでお待ちください...")
 
 st_autorefresh(interval=10_000, key="auto_refresh")

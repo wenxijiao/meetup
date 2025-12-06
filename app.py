@@ -25,9 +25,9 @@ def login():
         pass
     elif role == "Participant":
         with st.form("checkin_form"):
-            name = st.text_input("你的名字 / Your Name")
+            name = st.text_input("君の名前 / Your Name")
             language = st.selectbox(
-                "语言 / Language", 
+                "言語 / Language", 
                 ["English", "Japanese"]
             )
             submitted = st.form_submit_button("✅ Log in")
