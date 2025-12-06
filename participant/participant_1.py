@@ -1,14 +1,9 @@
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
-import extra_streamlit_components as stx
 import time
 from data.firebase_db import get_my_status, logout_user
 
-cookie_manager = stx.CookieManager(key="meetup_manager")
-current_id = cookie_manager.get(cookie="uuid")
-
-if not current_id and "u_id" in st.session_state:
-    current_id = st.session_state.u_id
+current_id = st.session_state.u_id
 if not current_id:
     # 确实没有任何 ID，才显示未登录
     st.error("You are not Checked In. Please log in again.")
