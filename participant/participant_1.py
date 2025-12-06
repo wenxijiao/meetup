@@ -4,48 +4,64 @@ import extra_streamlit_components as stx
 import time
 from data.firebase_db import get_my_status, logout_user
 
-cookie_manager = stx.CookieManager(key="meetup_part")
+cookie_manager = stx.CookieManager(key="meetup_manager")
 current_id = cookie_manager.get(cookie="uuid")
-current_participant = get_my_status(current_id)
 
-if current_participant.status == "Not Checked In":
+if not current_id and "u_id" in st.session_state:
+    current_id = st.session_state.u_id
+if not current_id:
+    # 确实没有任何 ID，才显示未登录
     st.error("You are not Checked In. Please log in again.")
     if st.button("Go to Login Page"):
         st.session_state.role = "Select your role"
         st.rerun()
 else:
-    st.header("Participant Page")
+    try:
+        current_participant = get_my_status(current_id)
 
-    name = current_participant.name
+        if current_participant.status == "Not Checked In":
+            st.error("You are not Checked In. Please log in again.")
+            if st.button("Go to Login Page"):
+                st.session_state.role = "Select your role"
+                st.rerun()
+        else:
+            st.header("Participant Page")
 
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.write(f"👤 **{name}**")
-    with col2:
-        if st.button("ログアウト / Logout", type="secondary", use_container_width=True):
-            logout_user(current_id)
-            st.session_state.role = "Select your role"
-            st.rerun()
+            name = current_participant.name
 
-    table_number = current_participant.table_number
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"👤 **{name}**")
+            with col2:
+                if st.button("ログアウト / Logout", type="secondary", use_container_width=True):
+                    logout_user(current_id)
+                    st.session_state.role = "Select your role"
+                    st.rerun()
 
-    st.divider()
+            table_number = current_participant.table_number
 
-    if table_number:
-        st.markdown(f"""
-        <div style="
-            text-align: center; 
-            padding: 30px; 
-            background-color: #d4edda; 
-            border-radius: 15px;
-            margin-bottom: 20px;
-            border: 2px solid #c3e6cb;">
-            <p style="color: #155724; margin: 0;">Your Table</p>
-            <h1 style="color: #155724; font-size: 80px; margin: 0;">{table_number}</h1>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.caption("The event has not started yet. Please wait for the organizer to begin...")
-        st.caption("イベントはまだ開始していません、主催者が開始するまでお待ちください...")
+            st.divider()
 
-st_autorefresh(interval=10_000, key="auto_refresh")
+            if table_number:
+                st.markdown(f"""
+                <div style="
+                    text-align: center; 
+                    padding: 30px; 
+                    background-color: #d4edda; 
+                    border-radius: 15px;
+                    margin-bottom: 20px;
+                    border: 2px solid #c3e6cb;">
+                    <p style="color: #155724; margin: 0;">Your Table</p>
+                    <h1 style="color: #155724; font-size: 80px; margin: 0;">{table_number}</h1>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.caption("The event has not started yet. Please wait for the organizer to begin...")
+                st.caption("イベントはまだ開始していません、主催者が開始するまでお待ちください...")
+
+        st_autorefresh(interval=10_000, key="auto_refresh")
+
+    except ValueError:
+        st.session_state.role = "Select your role"
+        st.rerun()
+        

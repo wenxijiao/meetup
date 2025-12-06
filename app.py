@@ -4,8 +4,13 @@ import datetime
 import extra_streamlit_components as stx
 from data.firebase_db import login_user, logup_user
 
-cookie_manager = stx.CookieManager(key="meetup_app")
-current_id = cookie_manager.get(cookie="uuid")
+cookie_manager = stx.CookieManager(key="meetup_manager")
+cookie_id = cookie_manager.get(cookie="uuid")
+if "u_id" not in st.session_state:
+    st.session_state.u_id = None
+if cookie_id:
+    st.session_state.u_id = cookie_id
+current_id = st.session_state.u_id
 
 if "role" not in st.session_state:
     st.session_state.role = "Select your role"
@@ -39,10 +44,13 @@ def login():
 
                         st.session_state.role = role
                         st.session_state.name = final_name
+
+                        st.session_state.u_id = participant_id
                         st.rerun()
                     else:
                         participant_id, final_name = logup_user(name, language)
                         cookie_manager.set("uuid", participant_id, expires_at=datetime.datetime.now() + datetime.timedelta(days=1))
+                        st.session_state.u_id = participant_id
                         time.sleep(1)
 
                         st.session_state.role = role
