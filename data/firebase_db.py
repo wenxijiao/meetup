@@ -1,7 +1,8 @@
 import math
 import random
 from pathlib import Path
-from datetime import date
+from datetime import datetime
+import pytz
 from data.data_structure import Participant
 
 import firebase_admin
@@ -15,9 +16,10 @@ if not firebase_admin._apps:
 db = firestore.client()
 
 ROOT_COLLECTION = "meetups"
+tz = pytz.timezone("Pacific/Auckland")
 
 def login_user(id, name, language):
-    query = db.collection(ROOT_COLLECTION).document(str(date.today())).collection("participants").where(filter=FieldFilter("id", "==", id)).stream()
+    query = db.collection(ROOT_COLLECTION).document(str(datetime.now(tz=tz).date())).collection("participants").where(filter=FieldFilter("id", "==", id)).stream()
     results = [ans.to_dict() for ans in query]
     if len(results) > 0:
         user_data = results[0]
@@ -30,7 +32,7 @@ def login_user(id, name, language):
             status="Checked In",
             history=user_data.get("history", [])
         )
-        db.collection(ROOT_COLLECTION).document(str(date.today())).collection("participants").document(user.id).set(user.to_dict())
+        db.collection(ROOT_COLLECTION).document(str(datetime.now(tz=tz).date())).collection("participants").document(user.id).set(user.to_dict())
         return id, name
     else:
         return logup_user(name, language, id=id)
@@ -38,22 +40,22 @@ def login_user(id, name, language):
 def logup_user(name, language, id=None):
     user = Participant(name=name, language=language, id=id)
     user.check_in()
-    db.collection(ROOT_COLLECTION).document(str(date.today())).collection("participants").document(user.id).set(user.to_dict())
+    db.collection(ROOT_COLLECTION).document(str(datetime.now(tz=tz).date())).collection("participants").document(user.id).set(user.to_dict())
     return user.id, user.name
 
 def logout_user(id):
-    query = db.collection(ROOT_COLLECTION).document(str(date.today())).collection("participants").where(filter=FieldFilter("id", "==", id)).stream()
+    query = db.collection(ROOT_COLLECTION).document(str(datetime.now(tz=tz).date())).collection("participants").where(filter=FieldFilter("id", "==", id)).stream()
     results = [ans.to_dict() for ans in query]
     if len(results) > 0:
         user_data = results[0]
         user = Participant.from_dict(user_data)
         user.check_out()
-        db.collection(ROOT_COLLECTION).document(str(date.today())).collection("participants").document(user.id).set(user.to_dict())
+        db.collection(ROOT_COLLECTION).document(str(datetime.now(tz=tz).date())).collection("participants").document(user.id).set(user.to_dict())
     else:
         raise ValueError("Participant not found")
 
 def get_my_status(id):
-    query = db.collection(ROOT_COLLECTION).document(str(date.today())).collection("participants").where(filter=FieldFilter("id", "==", id)).stream()
+    query = db.collection(ROOT_COLLECTION).document(str(datetime.now(tz=tz).date())).collection("participants").where(filter=FieldFilter("id", "==", id)).stream()
     results = [ans.to_dict() for ans in query]
     if len(results) > 0:
         user_data = results[0]
@@ -62,16 +64,16 @@ def get_my_status(id):
         raise ValueError("Participant not found")
 
 def get_all_participants():
-    query = db.collection(ROOT_COLLECTION).document(str(date.today())).collection("participants").stream()
+    query = db.collection(ROOT_COLLECTION).document(str(datetime.now(tz=tz).date())).collection("participants").stream()
     return [Participant.from_dict(ans.to_dict()) for ans in query]
 
 def get_active_participants():
-    query = db.collection(ROOT_COLLECTION).document(str(date.today())).collection("participants").where(filter=FieldFilter("status", "==", "Checked In")).stream()
+    query = db.collection(ROOT_COLLECTION).document(str(datetime.now(tz=tz).date())).collection("participants").where(filter=FieldFilter("status", "==", "Checked In")).stream()
     return [Participant.from_dict(ans.to_dict()) for ans in query]
 
 def batch_update_participants(participants):
     batch = db.batch()
-    today_ref = db.collection(ROOT_COLLECTION).document(str(date.today())).collection("participants")
+    today_ref = db.collection(ROOT_COLLECTION).document(str(datetime.now(tz=tz).date())).collection("participants")
     for participant in participants:
         doc_ref = today_ref.document(participant.id)
         batch.set(doc_ref, participant.to_dict())

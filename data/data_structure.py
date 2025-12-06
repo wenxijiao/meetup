@@ -1,5 +1,8 @@
 from datetime import datetime
+import pytz
 import uuid
+
+tz = pytz.timezone("Pacific/Auckland")
 
 class Participant:
     def __init__(self, name, language, id=None, table_number=None, check_in_time=None, check_out_time=None, status="Not Checked In", history=None):
@@ -13,12 +16,12 @@ class Participant:
         self.history = history or []
 
     def check_in(self):
-        now_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        now_str = str(datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S"))
         self.check_in_time = now_str
         self.status = "Checked In"
 
     def check_out(self):
-        now_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        now_str = str(datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S"))
         self.check_out_time = now_str
         self.status = "Not Checked In"
         self.table_number = None

@@ -1,6 +1,5 @@
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
-import time
 from data.firebase_db import get_my_status, logout_user
 
 current_id = st.session_state.u_id
