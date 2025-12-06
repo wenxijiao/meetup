@@ -80,16 +80,13 @@ def batch_update_participants(participants):
 def start_next_round(target_per_table: int, min_per_table: int):
     active_participants = get_active_participants()
     total_count = len(active_participants)
+    print(f"DEBUG: 正在尝试开始新一轮。当前 Checked In 人数: {total_count}")
     if total_count == 0:
         return
 
     # --- 1. 简单的桌数计算 ---
     # 比如 13人 / 4 = 4桌
     num_tables = math.ceil(total_count / target_per_table)
-    
-    # 修正：如果算出来的桌子导致平均人数太少 (比如 5人分2桌，平均2.5 < min 3)，就减一桌
-    if num_tables > 1 and (total_count / num_tables) < min_per_table:
-        num_tables -= 1
         
     num_tables = max(1, num_tables) # 保底 1 桌
 
@@ -105,7 +102,7 @@ def start_next_round(target_per_table: int, min_per_table: int):
         
         # 更新内存中的对象状态
         p.table_number = table_no
-        # (最简版暂时不更新 history，先只看桌号变化)
+        print(f"DEBUG: 分配 -> 名字: {p.name}, ID尾号: {p.id[-4:]}, 桌号: {p.table_number}")
 
     # --- 4. 批量保存到数据库 ---
     # 这一步做完，用户手机上的界面就会自动刷新了
