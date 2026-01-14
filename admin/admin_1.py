@@ -1,7 +1,7 @@
 import streamlit as st
 import math
 import time
-from data.firebase_db import get_active_participants, start_next_round, reset_event
+from data.firebase_db import get_active_participants, start_next_round, start_round_timer, reset_event
 
 
 @st.fragment(run_every=30)
@@ -39,7 +39,7 @@ st.divider()
 
 st.subheader("⚙️ Round Settings")
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     target_per_table = st.number_input(
@@ -64,6 +64,15 @@ with col2:
         help="The minimum number of people for each table."
     )
 
+with col3:
+    round_duration_min = st.number_input(
+        "Round Duration (minutes)",
+        min_value=5,
+        max_value=90,
+        value=30,
+        help="Timer length shown to participants.",
+    )
+
 render_participant_status(target_per_table=target_per_table)
 
 st.divider()
@@ -71,19 +80,32 @@ st.divider()
 st.subheader("🚀 Actions")
 
 start_btn = st.button("Start Next Round 🎲", type="primary", width="stretch")
+timer_btn = st.button("Start Timer ⏱️", type="secondary", width="stretch")
 
 if start_btn:
     if total_count < min_per_table:
         st.error("Not enough people to start a round!")
     else:
         with st.spinner(f"Allocating people into tables..."):
-            start_next_round(target_per_table=target_per_table, min_per_table=min_per_table)
+            start_next_round(
+                target_per_table=target_per_table,
+                min_per_table=min_per_table,
+            )
             # time.sleep(1)
         
         st.session_state.started = True
 
         st.success("✅ Round Started! Participants can now see their tables.")
         time.sleep(4)
+        st.rerun()
+
+if timer_btn:
+    started = start_round_timer(round_duration_min)
+    if not started:
+        st.warning("Start a round first, then start the timer.")
+    else:
+        st.success("⏱️ Timer started!")
+        time.sleep(1)
         st.rerun()
 
 st.write("")

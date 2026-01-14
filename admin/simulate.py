@@ -1,8 +1,20 @@
 import random
+from datetime import datetime
+
+import pytz
 import streamlit as st
 
 from data.data_structure import Participant
 from data.logic import assign_tables, assign_tables_debug
+from data.firebase_db import (
+    clear_test_participants,
+    create_test_participants,
+    get_event_state,
+    get_table_activity,
+    get_test_participants,
+    start_next_round,
+    start_round_timer,
+)
 
 
 st.title("🧪 Table Assignment Simulator / Visualizer")
@@ -205,5 +217,103 @@ if run:
                     st.write(placements[:200])  # cap output
                     if len(placements) > 200:
                         st.caption(f"Showing first 200 rows out of {len(placements)}.")
+
+st.divider()
+st.title("🧪 Firebase Test Data (Real UI)")
+st.caption("Seed test users into Firestore to preview the real app behavior.")
+
+tz = pytz.timezone("Pacific/Auckland")
+today_str = str(datetime.now(tz=tz).date())
+
+colf1, colf2, colf3 = st.columns(3)
+with colf1:
+    fb_en = st.number_input("EN test users", min_value=0, max_value=200, value=10, step=1)
+with colf2:
+    fb_jp = st.number_input("JP test users", min_value=0, max_value=200, value=10, step=1)
+with colf3:
+    fb_tag = st.text_input("Test tag (optional)", value="demo")
+
+colr1, colr2 = st.columns(2)
+with colr1:
+    fb_max = st.number_input("Round max per table", min_value=2, max_value=10, value=4, step=1)
+with colr2:
+    fb_min = st.number_input("Round min per table", min_value=1, max_value=int(fb_max), value=2, step=1)
+fb_duration = st.number_input("Round duration (minutes)", min_value=5, max_value=90, value=30, step=5)
+
+confirm = st.checkbox("I understand this writes to Firestore (today only).", value=False)
+colb1, colb2, colb3 = st.columns(3)
+with colb1:
+    if st.button("Seed test users", width="stretch"):
+        if not confirm:
+            st.error("Please confirm before writing.")
+        else:
+            created = create_test_participants(int(fb_en), int(fb_jp), tag=fb_tag or None)
+            st.success(f"Created {len(created)} test users for {today_str}.")
+with colb2:
+    if st.button("Seed + Start round", width="stretch"):
+        if not confirm:
+            st.error("Please confirm before writing.")
+        else:
+            created = create_test_participants(int(fb_en), int(fb_jp), tag=fb_tag or None)
+            tables = start_next_round(int(fb_max), int(fb_min))
+            st.success(f"Created {len(created)} users and started round. Tables: {tables}.")
+with colb3:
+    if st.button("Clear test users", width="stretch"):
+        if not confirm:
+            st.error("Please confirm before deleting.")
+        else:
+            deleted = clear_test_participants(tag=fb_tag or None)
+            st.success(f"Deleted {deleted} test users.")
+
+colb4, colb5 = st.columns(2)
+with colb4:
+    if st.button("Start timer (current round)", width="stretch"):
+        if not confirm:
+            st.error("Please confirm before writing.")
+        else:
+            ok = start_round_timer(int(fb_duration))
+            if not ok:
+                st.warning("No active round. Start a round first.")
+            else:
+                st.success("Timer started.")
+
+st.subheader("Participant UI preview (from test users)")
+all_test_users = get_test_participants()
+filtered = []
+if fb_tag:
+    filtered = [u for u in all_test_users if u.get("test_tag") == fb_tag]
+test_users = filtered if filtered else all_test_users
+
+if not test_users:
+    st.info("No test users found for preview.")
+else:
+    if fb_tag and not filtered and all_test_users:
+        st.warning("No users matched this tag. Showing all test users instead.")
+    options = {f"{u.get('name')} ({u.get('language')})": u for u in test_users}
+    choice = st.selectbox("Select a test user", list(options.keys()))
+    selected = options[choice]
+    st.write(
+        {
+            "name": selected.get("name"),
+            "language": selected.get("language"),
+            "status": selected.get("status"),
+            "table_number": selected.get("table_number"),
+        }
+    )
+
+    state = get_event_state()
+    round_no = int(state.get("current_round") or 0)
+    table_no = selected.get("table_number")
+    if round_no > 0 and table_no:
+        activity = get_table_activity(round_no, str(table_no))
+        if activity and activity.get("task_index") is not None:
+            task_idx = int(activity["task_index"])
+        else:
+            task_idx = pick_task_index(today_str, round_no, str(table_no))
+        task = TASKS[task_idx]
+        st.markdown(f"**Table {table_no} | Round {round_no}**")
+        st.markdown(f"**{task['title']}**")
+        for line in task["steps"]:
+            st.write(f"- {line}")
 
 

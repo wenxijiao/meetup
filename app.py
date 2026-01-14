@@ -40,9 +40,15 @@ if "started" not in st.session_state:
     st.session_state.started = False
 if "name" not in st.session_state:
     st.session_state.name = None
+if "skip_auto_restore" not in st.session_state:
+    st.session_state.skip_auto_restore = False
 
 # 自动恢复：如果有 cookie，并且当日仍是 Checked In，则自动进入 Participant
-if st.session_state.role == "Select your role" and st.session_state.u_id:
+if (
+    st.session_state.role == "Select your role"
+    and st.session_state.u_id
+    and not st.session_state.skip_auto_restore
+):
     try:
         p = get_my_status(st.session_state.u_id)
         if p.status == "Checked In":
@@ -96,6 +102,7 @@ def login():
 
                         st.session_state.role = role
                         st.session_state.name = final_name
+                        st.session_state.skip_auto_restore = False
 
                         st.session_state.u_id = participant_id
                         st.rerun()
@@ -111,6 +118,7 @@ def login():
 
                         st.session_state.role = role
                         st.session_state.name = final_name
+                        st.session_state.skip_auto_restore = False
                         st.rerun()
                 else:
                     st.error("名前と言語を選択してください。 / Please enter your name and select a language.")
@@ -128,13 +136,14 @@ def login():
 def logout():
     # 显式登出：仅重置会话态，不删除 cookie（便于同一活动内快速恢复）
     st.session_state.name = None
+    st.session_state.u_id = None
+    st.session_state.skip_auto_restore = True
     st.session_state.role = "Select your role"
     st.rerun()
 
 
 role = st.session_state.role
 
-logout_page = st.Page(logout, title="Log out", icon=":material/logout:")
 logout_page = st.Page(logout, title="ログアウト / Log out", icon=":material/logout:")
 settings = st.Page("settings.py", title="設定 / Settings", icon=":material/settings:")
 
@@ -143,6 +152,11 @@ participant = st.Page(
     title="参加者 / Participant",
     icon=":material/healing:",
     default=(role == "Participant"),
+)
+participant_activity = st.Page(
+    "participant/participant_2.py",
+    title="活動 / Activities",
+    icon=":material/forum:",
 )
 participant_test_page = st.Page(
     "participant/test.py", 
@@ -171,8 +185,7 @@ admin_test_page = st.Page(
 
 
 account_pages = [logout_page, settings]
-participant_pages = [participant, participant_test_page]
-admin_pages = [admin_1, admin_2, admin_test_page]
+participant_pages = [participant, participant_activity, participant_test_page]
 admin_pages = [admin_1, admin_2, admin_simulate, admin_test_page]
 
 if st.session_state.role == "Select your role":

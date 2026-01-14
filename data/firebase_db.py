@@ -18,12 +18,19 @@ ROOT_COLLECTION = "meetups"
 tz = pytz.timezone("Pacific/Auckland")
 META_COLLECTION = "meta"
 STATE_DOC_ID = "state"
+ACTIVITIES_DOC_ID = "activities"
 
 def _today_doc():
     return db.collection(ROOT_COLLECTION).document(str(datetime.now(tz=tz).date()))
 
 def _state_ref():
     return _today_doc().collection(META_COLLECTION).document(STATE_DOC_ID)
+
+def _activities_root_ref():
+    return _today_doc().collection(META_COLLECTION).document(ACTIVITIES_DOC_ID)
+
+def _activity_ref(round_no: int, table_no: str):
+    return _activities_root_ref().collection(str(round_no)).document(str(table_no))
 
 def get_event_state():
     doc = _state_ref().get()
@@ -33,6 +40,8 @@ def get_event_state():
             "current_round": 0,
             "max_per_table": None,
             "min_per_table": None,
+            "round_started_at": None,
+            "round_duration_min": None,
             "table_counts": {},
         }
     data = doc.to_dict() or {}
@@ -41,10 +50,28 @@ def get_event_state():
     data.setdefault("table_counts", {})
     data.setdefault("max_per_table", None)
     data.setdefault("min_per_table", None)
+    data.setdefault("round_started_at", None)
+    data.setdefault("round_duration_min", None)
     return data
 
 def set_event_state(state: dict):
     _state_ref().set(state, merge=True)
+
+def get_table_activity(round_no: int, table_no: str):
+    doc = _activity_ref(round_no, table_no).get()
+    if not doc.exists:
+        return None
+    return doc.to_dict() or None
+
+def set_table_activity(round_no: int, table_no: str, task_index: int, updated_by: str):
+    _activity_ref(round_no, table_no).set(
+        {
+            "task_index": int(task_index),
+            "updated_by": updated_by,
+            "updated_at": datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S"),
+        },
+        merge=True,
+    )
 
 def _participants_ref():
     return _today_doc().collection("participants")
@@ -242,9 +269,26 @@ def start_next_round(target_per_table: int, min_per_table: int):
     state["min_per_table"] = min_per_table
     state["current_round"] = next_round
     state["table_counts"] = table_counts
+    # Timer is started separately by admin action
+    state["round_started_at"] = None
+    state["round_duration_min"] = None
     set_event_state(state)
 
     return num_tables
+
+
+def start_round_timer(round_duration_min: int = 30) -> bool:
+    """
+    Start (or restart) the round timer without changing table assignments.
+    Returns True if timer started, False if no active round.
+    """
+    state = get_event_state()
+    if int(state.get("current_round") or 0) <= 0:
+        return False
+    state["round_started_at"] = datetime.now(tz=tz).isoformat()
+    state["round_duration_min"] = int(round_duration_min)
+    set_event_state(state)
+    return True
 
 
 def reset_event():
@@ -259,7 +303,68 @@ def reset_event():
             "current_round": 0,
             "max_per_table": None,
             "min_per_table": None,
+            "round_started_at": None,
+            "round_duration_min": None,
             "table_counts": {},
         }
     )
+    
+
+def create_test_participants(n_en: int, n_jp: int, name_prefix: str = "SimUser", tag: str | None = None):
+    """
+    Create test participants in today's collection.
+    These records are marked with is_test=True and optional test_tag for safe cleanup.
+    """
+    participants = []
+    for i in range(n_en):
+        p = Participant(name=f"{name_prefix}-EN-{i+1}", language="English")
+        p.check_in()
+        participants.append(p)
+    for i in range(n_jp):
+        p = Participant(name=f"{name_prefix}-JP-{i+1}", language="Japanese")
+        p.check_in()
+        participants.append(p)
+
+    batch = db.batch()
+    today_ref = _participants_ref()
+    for p in participants:
+        data = p.to_dict()
+        data["is_test"] = True
+        if tag:
+            data["test_tag"] = tag
+        batch.set(today_ref.document(p.id), data)
+    batch.commit()
+    return participants
+
+
+def clear_test_participants(tag: str | None = None) -> int:
+    """
+    Delete test participants from today's collection.
+    If tag is provided, only deletes records with matching test_tag.
+    Returns number of deleted documents.
+    """
+    query = _participants_ref().where(filter=FieldFilter("is_test", "==", True)).stream()
+    docs = list(query)
+    if tag:
+        docs = [d for d in docs if d.to_dict().get("test_tag") == tag]
+
+    if not docs:
+        return 0
+
+    batch = db.batch()
+    for d in docs:
+        batch.delete(d.reference)
+    batch.commit()
+    return len(docs)
+
+
+def get_test_participants(tag: str | None = None):
+    """
+    Return test participant docs (raw dicts), optionally filtered by test_tag.
+    """
+    query = _participants_ref().where(filter=FieldFilter("is_test", "==", True)).stream()
+    docs = [d.to_dict() for d in query]
+    if tag:
+        docs = [d for d in docs if d.get("test_tag") == tag]
+    return docs
     

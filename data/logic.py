@@ -60,6 +60,32 @@ def _met_before_ids(p: Participant) -> Set[str]:
     met.discard(getattr(p, "id", None))
     return met
 
+def _last_round_mates(p: Participant) -> Set[str]:
+    """
+    Return mates from the most recent round (by max round number).
+    Falls back to empty set if no round info.
+    """
+    if not p.history:
+        return set()
+    last_round = None
+    last_mates: Set[str] = set()
+    for entry in p.history:
+        if not isinstance(entry, dict):
+            continue
+        r = entry.get("round")
+        mates = entry.get("mates")
+        if r is None or not isinstance(mates, list):
+            continue
+        try:
+            r_int = int(r)
+        except Exception:
+            continue
+        if (last_round is None) or (r_int > last_round):
+            last_round = r_int
+            last_mates = {m for m in mates if isinstance(m, str)}
+    last_mates.discard(getattr(p, "id", None))
+    return last_mates
+
 def _choose_table_count(
     total: int,
     max_per_table: int,
@@ -135,28 +161,50 @@ def _seed_tables_for_language(
     random.shuffle(jp_only)
     random.shuffle(other)
 
+    def pick_best(candidates: List[Participant], table: List[Participant]) -> Participant:
+        """
+        Pick a candidate that minimizes repeat pairing with current table.
+        Ties are broken randomly.
+        """
+        if len(candidates) == 1:
+            return candidates.pop()
+        best_idx = 0
+        best_cost = 10**9
+        tie_indices = []
+        for idx, cand in enumerate(candidates):
+            met = _met_before_ids(cand)
+            last = _last_round_mates(cand)
+            cost = sum(1 for m in table if m.id in met) + 3 * sum(1 for m in table if m.id in last)
+            if cost < best_cost:
+                best_cost = cost
+                tie_indices = [idx]
+            elif cost == best_cost:
+                tie_indices.append(idx)
+        chosen_idx = random.choice(tie_indices)
+        return candidates.pop(chosen_idx)
+
     # Pass 1: place EN-only into each table if possible
     for i in range(len(tables)):
         if en_only:
-            tables[i].append(en_only.pop())
+            tables[i].append(pick_best(en_only, tables[i]))
 
     # Pass 2: ensure JP presence: prefer JP-only; else use bilingual; else leave unsatisfied
     for i in range(len(tables)):
         if any(_has_japanese(x) for x in tables[i]):
             continue
         if jp_only:
-            tables[i].append(jp_only.pop())
+            tables[i].append(pick_best(jp_only, tables[i]))
         elif both:
-            tables[i].append(both.pop())
+            tables[i].append(pick_best(both, tables[i]))
 
     # Pass 3: ensure EN presence similarly (for tables that got only JP or only bilingual missing EN)
     for i in range(len(tables)):
         if any(_has_english(x) for x in tables[i]):
             continue
         if en_only:
-            tables[i].append(en_only.pop())
+            tables[i].append(pick_best(en_only, tables[i]))
         elif both:
-            tables[i].append(both.pop())
+            tables[i].append(pick_best(both, tables[i]))
 
     remaining = both + en_only + jp_only + other
     random.shuffle(remaining)
@@ -173,13 +221,16 @@ def _fill_tables_min_repeat(
     Greedy: place each participant into the table that causes the smallest increase in repeats.
     """
     met_cache: Dict[str, Set[str]] = {p.id: _met_before_ids(p) for p in remaining}
+    last_cache: Dict[str, Set[str]] = {p.id: _last_round_mates(p) for p in remaining}
     for t in tables:
         for p in t:
             met_cache.setdefault(p.id, _met_before_ids(p))
+            last_cache.setdefault(p.id, _last_round_mates(p))
 
     def incremental_cost(p: Participant, table: List[Participant]) -> int:
         met = met_cache.get(p.id, set())
-        return sum(1 for m in table if m.id in met)
+        last = last_cache.get(p.id, set())
+        return sum(1 for m in table if m.id in met) + 3 * sum(1 for m in table if m.id in last)
 
     for p in remaining:
         sizes_before = [len(t) for t in tables]
