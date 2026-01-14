@@ -33,6 +33,7 @@ class Participant:
             "language": self.language,
             "table_number": self.table_number,
             "check_in_time": self.check_in_time,
+            "check_out_time": self.check_out_time,
             "status": self.status,
             "history": self.history
         }
@@ -45,6 +46,8 @@ class Participant:
             id=data["id"],
             table_number=data.get("table_number"),
             check_in_time=data.get("check_in_time"),
+            check_out_time=data.get("check_out_time"),
             status=data.get("status", "Not Checked In"),
             history=data.get("history", [])
         )
+    

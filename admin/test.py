@@ -42,7 +42,7 @@ if participants:
     
     st.dataframe(
         df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Status": st.column_config.TextColumn("Status"),
