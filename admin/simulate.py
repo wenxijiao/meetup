@@ -9,11 +9,8 @@ from data.logic import assign_tables, assign_tables_debug
 from data.firebase_db import (
     clear_test_participants,
     create_test_participants,
-    get_event_state,
-    get_table_activity,
+    get_all_participants,
     get_test_participants,
-    start_next_round,
-    start_round_timer,
 )
 
 
@@ -219,8 +216,8 @@ if run:
                         st.caption(f"Showing first 200 rows out of {len(placements)}.")
 
 st.divider()
-st.title("🧪 Firebase Test Data (Real UI)")
-st.caption("Seed test users into Firestore to preview the real app behavior.")
+st.title("🧪 Firebase Test Data")
+st.caption("Create or delete test users in Firestore. No other actions here.")
 
 tz = pytz.timezone("Pacific/Auckland")
 today_str = str(datetime.now(tz=tz).date())
@@ -233,87 +230,25 @@ with colf2:
 with colf3:
     fb_tag = st.text_input("Test tag (optional)", value="demo")
 
-colr1, colr2 = st.columns(2)
-with colr1:
-    fb_max = st.number_input("Round max per table", min_value=2, max_value=10, value=4, step=1)
-with colr2:
-    fb_min = st.number_input("Round min per table", min_value=1, max_value=int(fb_max), value=2, step=1)
-fb_duration = st.number_input("Round duration (minutes)", min_value=5, max_value=90, value=30, step=5)
+# Show current test-user counts for visibility
+all_participants = get_all_participants()
+all_test_users = get_test_participants()
+tagged = [u for u in all_test_users if fb_tag and u.get("test_tag") == fb_tag]
+st.caption(
+    f"Today total participants: {len(all_participants)} | "
+    f"Test users: total={len(all_test_users)}, tag '{fb_tag}'={len(tagged)}"
+)
 
 confirm = st.checkbox("I understand this writes to Firestore (today only).", value=False)
+clear_all = st.checkbox("Clear ALL test users (ignore tag)", value=False)
 colb1, colb2, colb3 = st.columns(3)
 with colb1:
-    if st.button("Seed test users", width="stretch"):
-        if not confirm:
-            st.error("Please confirm before writing.")
-        else:
-            created = create_test_participants(int(fb_en), int(fb_jp), tag=fb_tag or None)
-            st.success(f"Created {len(created)} test users for {today_str}.")
+    if st.button("Seed test users", width="stretch", disabled=not confirm):
+        created = create_test_participants(int(fb_en), int(fb_jp), tag=fb_tag or None)
+        st.success(f"Created {len(created)} test users for {today_str}.")
 with colb2:
-    if st.button("Seed + Start round", width="stretch"):
-        if not confirm:
-            st.error("Please confirm before writing.")
-        else:
-            created = create_test_participants(int(fb_en), int(fb_jp), tag=fb_tag or None)
-            tables = start_next_round(int(fb_max), int(fb_min))
-            st.success(f"Created {len(created)} users and started round. Tables: {tables}.")
-with colb3:
-    if st.button("Clear test users", width="stretch"):
-        if not confirm:
-            st.error("Please confirm before deleting.")
-        else:
-            deleted = clear_test_participants(tag=fb_tag or None)
-            st.success(f"Deleted {deleted} test users.")
-
-colb4, colb5 = st.columns(2)
-with colb4:
-    if st.button("Start timer (current round)", width="stretch"):
-        if not confirm:
-            st.error("Please confirm before writing.")
-        else:
-            ok = start_round_timer(int(fb_duration))
-            if not ok:
-                st.warning("No active round. Start a round first.")
-            else:
-                st.success("Timer started.")
-
-st.subheader("Participant UI preview (from test users)")
-all_test_users = get_test_participants()
-filtered = []
-if fb_tag:
-    filtered = [u for u in all_test_users if u.get("test_tag") == fb_tag]
-test_users = filtered if filtered else all_test_users
-
-if not test_users:
-    st.info("No test users found for preview.")
-else:
-    if fb_tag and not filtered and all_test_users:
-        st.warning("No users matched this tag. Showing all test users instead.")
-    options = {f"{u.get('name')} ({u.get('language')})": u for u in test_users}
-    choice = st.selectbox("Select a test user", list(options.keys()))
-    selected = options[choice]
-    st.write(
-        {
-            "name": selected.get("name"),
-            "language": selected.get("language"),
-            "status": selected.get("status"),
-            "table_number": selected.get("table_number"),
-        }
-    )
-
-    state = get_event_state()
-    round_no = int(state.get("current_round") or 0)
-    table_no = selected.get("table_number")
-    if round_no > 0 and table_no:
-        activity = get_table_activity(round_no, str(table_no))
-        if activity and activity.get("task_index") is not None:
-            task_idx = int(activity["task_index"])
-        else:
-            task_idx = pick_task_index(today_str, round_no, str(table_no))
-        task = TASKS[task_idx]
-        st.markdown(f"**Table {table_no} | Round {round_no}**")
-        st.markdown(f"**{task['title']}**")
-        for line in task["steps"]:
-            st.write(f"- {line}")
+    if st.button("Clear test users", width="stretch", disabled=not confirm):
+        deleted = clear_test_participants(tag=None if clear_all else (fb_tag or None))
+        st.success(f"Deleted {deleted} test users.")
 
 

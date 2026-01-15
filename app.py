@@ -3,6 +3,13 @@ import time
 import datetime
 import pytz
 import extra_streamlit_components as stx
+from pathlib import Path
+import sys
+
+# Ensure local package import works reliably under Streamlit reloader
+sys.path.append(str(Path(__file__).parent))
+import data  # noqa: F401
+
 from data.firebase_db import login_user, logup_user, get_my_status
 
 cookie_manager = stx.CookieManager(key="meetup_manager")
@@ -158,10 +165,10 @@ participant_activity = st.Page(
     title="活動 / Activities",
     icon=":material/forum:",
 )
-participant_test_page = st.Page(
-    "participant/test.py", 
-    title="テスト / Test", 
-    icon=":material/bug_report:")
+# participant_test_page = st.Page(
+#     "participant/test.py", 
+#     title="テスト / Test", 
+#     icon=":material/bug_report:")
 
 admin_1 = st.Page(
     "admin/admin_1.py",
@@ -178,18 +185,18 @@ admin_simulate = st.Page(
     title="Simulate / Debug",
     icon=":material/biotech:",
 )
-admin_test_page = st.Page(
-    "admin/test.py", 
-    title="Test Page", 
-    icon=":material/bug_report:")
+# admin_test_page = st.Page(
+#     "admin/test.py", 
+#     title="Test Page", 
+#     icon=":material/bug_report:")
 
 
 account_pages = [logout_page, settings]
-participant_pages = [participant, participant_activity, participant_test_page]
-admin_pages = [admin_1, admin_2, admin_simulate, admin_test_page]
+participant_pages = [participant, participant_activity]
+admin_pages = [admin_1, admin_2, admin_simulate]
 
 if st.session_state.role == "Select your role":
-    st.title("ようこそ！ / Welcome to Auckland Japanese~English Exchange Meetup!")
+    st.title("ようこそ！Welcome to Auckland Japanese~English Exchange Meetup!")
 
 page_dict = {}
 if st.session_state.role == "Participant":

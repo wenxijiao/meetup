@@ -3,6 +3,13 @@ from datetime import datetime
 import pytz
 from data.data_structure import Participant
 from data.logic import assign_tables
+from activities.registry import (
+    create_activity_state,
+    choose_random_activity_id,
+    ACTIVITY_UNDERCOVER,
+    ACTIVITY_STORY_CHAIN,
+)
+import random
 
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -63,15 +70,224 @@ def get_table_activity(round_no: int, table_no: str):
         return None
     return doc.to_dict() or None
 
-def set_table_activity(round_no: int, table_no: str, task_index: int, updated_by: str):
-    _activity_ref(round_no, table_no).set(
+def set_table_activity_doc(round_no: int, table_no: str, data: dict):
+    _activity_ref(round_no, table_no).set(data, merge=True)
+
+
+def get_active_participants_by_table(table_no: str):
+    query = (
+        _participants_ref()
+        .where(filter=FieldFilter("status", "==", "Checked In"))
+        .where(filter=FieldFilter("table_number", "==", str(table_no)))
+        .stream()
+    )
+    return [Participant.from_dict(ans.to_dict()) for ans in query]
+
+
+def ensure_table_activity(round_no: int, table_no: str, updated_by: str):
+    """
+    Ensure an activity exists for (round, table). If missing, pick random and init state.
+    If exists but missing assignment for current user (due to late join), extend assignments.
+    """
+    participants = get_active_participants_by_table(table_no)
+    participant_ids = [p.id for p in participants]
+
+    doc = get_table_activity(round_no, table_no)
+    if not doc or not doc.get("activity_id"):
+        rng = random.Random()
+        activity_id = choose_random_activity_id(rng)
+        state = create_activity_state(activity_id, participant_ids, rng)
+        new_doc = {
+            "activity_id": activity_id,
+            "state": state,
+            "updated_by": updated_by,
+            "updated_at": datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        set_table_activity_doc(round_no, table_no, new_doc)
+        return new_doc
+
+    # extend state for late joiners without reshuffling the whole table
+    activity_id = doc.get("activity_id")
+    state = doc.get("state") or {}
+    if activity_id == ACTIVITY_UNDERCOVER:
+        assignments = state.get("assignments") or {}
+        missing = [pid for pid in participant_ids if pid not in assignments]
+        if missing:
+            pair = (state.get("pair") or {})
+            common = pair.get("common")
+            if common:
+                for pid in missing:
+                    assignments[pid] = common
+                state["assignments"] = assignments
+                doc["state"] = state
+                doc["updated_at"] = datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
+                set_table_activity_doc(round_no, table_no, {"state": state, "updated_at": doc["updated_at"]})
+    elif activity_id == ACTIVITY_STORY_CHAIN:
+        remaining = state.get("remaining") or {}
+        quota = state.get("quota") or {}
+        order = state.get("order") or []
+        missing = [pid for pid in participant_ids if pid not in remaining]
+        if missing:
+            rng = random.Random()
+            for pid in missing:
+                q = rng.choice([2, 2, 3])
+                quota[pid] = int(q)
+                remaining[pid] = int(q)
+                if pid not in order:
+                    order.append(pid)
+            state["quota"] = quota
+            state["remaining"] = remaining
+            state["order"] = order
+            state.setdefault("turn_idx", 0)
+            # Backward-compatible: older docs might not have a prompt yet.
+            state.setdefault("prompt", create_activity_state(ACTIVITY_STORY_CHAIN, participant_ids, rng).get("prompt"))
+            doc["state"] = state
+            doc["updated_at"] = datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
+            set_table_activity_doc(round_no, table_no, {"state": state, "updated_at": doc["updated_at"]})
+    return doc
+
+
+def _story_chain_next_turn_idx(order: list, remaining: dict, start_idx: int) -> int | None:
+    if not order:
+        return None
+    n = len(order)
+    for step in range(1, n + 1):
+        i = (start_idx + step) % n
+        pid = order[i]
+        if int(remaining.get(pid, 0)) > 0:
+            return i
+    return None
+
+
+@firestore.transactional
+def _story_chain_finish_turn_txn(transaction, doc_ref, participant_id: str, updated_by: str):
+    snap = doc_ref.get(transaction=transaction)
+    if not snap.exists:
+        raise ValueError("Activity doc not found")
+
+    doc = snap.to_dict() or {}
+    if doc.get("activity_id") != ACTIVITY_STORY_CHAIN:
+        raise ValueError("Not a story chain activity")
+
+    state = doc.get("state") or {}
+    remaining = state.get("remaining") or {}
+    quota = state.get("quota") or {}
+    order = state.get("order") or []
+    turn_idx = int(state.get("turn_idx") or 0)
+    done = bool(state.get("done"))
+
+    # late joiners: add quota/remaining on the fly
+    if participant_id not in remaining:
+        q = random.Random().choice([2, 2, 3])
+        quota[participant_id] = int(q)
+        remaining[participant_id] = int(q)
+        if participant_id not in order:
+            order.append(participant_id)
+
+    if done:
+        return doc
+
+    current_pid = order[turn_idx] if order and 0 <= turn_idx < len(order) else None
+    if current_pid != participant_id:
+        # Not your turn -> no-op
+        return doc
+
+    r = int(remaining.get(participant_id, 0))
+    if r > 0:
+        remaining[participant_id] = r - 1
+
+    # Determine if finished; else advance turn
+    finished = all(int(v) <= 0 for v in remaining.values()) if remaining else True
+    next_idx = None if finished else _story_chain_next_turn_idx(order, remaining, turn_idx)
+    if next_idx is None and not finished:
+        finished = True
+
+    new_state = dict(state)
+    new_state["quota"] = quota
+    new_state["remaining"] = remaining
+    new_state["order"] = order
+    new_state["done"] = bool(finished)
+    if next_idx is not None:
+        new_state["turn_idx"] = int(next_idx)
+    else:
+        new_state["turn_idx"] = int(turn_idx)
+
+    transaction.set(
+        doc_ref,
         {
-            "task_index": int(task_index),
+            "state": new_state,
             "updated_by": updated_by,
             "updated_at": datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S"),
         },
         merge=True,
     )
+    doc["state"] = new_state
+    return doc
+
+
+def story_chain_finish_turn(round_no: int, table_no: str, participant_id: str, updated_by: str):
+    """
+    Transaction-safe turn advance for Story Chain:
+    decrement your remaining by 1 (only if it's your turn), then advance to next participant.
+    """
+    doc_ref = _activity_ref(round_no, table_no)
+    transaction = db.transaction()
+    return _story_chain_finish_turn_txn(transaction, doc_ref, participant_id, updated_by)
+
+
+def story_chain_restart(round_no: int, table_no: str, updated_by: str):
+    """
+    Reset Story Chain within the same meetup round (not "Start Next Round").
+    This clears done state, re-rolls quotas (2-3 each), resets turn index, and picks a new opening prompt.
+    """
+    participants = get_active_participants_by_table(table_no)
+    participant_ids = sorted([p.id for p in participants])
+    rng = random.Random()
+    state = create_activity_state(ACTIVITY_STORY_CHAIN, participant_ids, rng)
+    patch = {
+        "activity_id": ACTIVITY_STORY_CHAIN,
+        "state": state,
+        "updated_by": updated_by,
+        "updated_at": datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    set_table_activity_doc(round_no, table_no, patch)
+    return patch
+
+
+def switch_table_activity(round_no: int, table_no: str, updated_by: str):
+    participants = get_active_participants_by_table(table_no)
+    participant_ids = [p.id for p in participants]
+    current = get_table_activity(round_no, table_no) or {}
+    current_id = current.get("activity_id")
+    rng = random.Random()
+    new_id = choose_random_activity_id(rng, exclude=current_id)
+    state = create_activity_state(new_id, participant_ids, rng)
+    new_doc = {
+        "activity_id": new_id,
+        "state": state,
+        "updated_by": updated_by,
+        "updated_at": datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    set_table_activity_doc(round_no, table_no, new_doc)
+    return new_doc
+
+
+def regenerate_undercover_words(round_no: int, table_no: str, updated_by: str):
+    """
+    Regenerate word pair + undercover assignment for current table, staying in undercover activity.
+    """
+    participants = get_active_participants_by_table(table_no)
+    participant_ids = [p.id for p in participants]
+    rng = random.Random()
+    state = create_activity_state(ACTIVITY_UNDERCOVER, participant_ids, rng)
+    patch = {
+        "activity_id": ACTIVITY_UNDERCOVER,
+        "state": state,
+        "updated_by": updated_by,
+        "updated_at": datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    set_table_activity_doc(round_no, table_no, patch)
+    return patch
 
 def _participants_ref():
     return _today_doc().collection("participants")
@@ -114,6 +330,19 @@ def logup_user(name, language, id=None):
     if not persisted:
         _participants_ref().document(user.id).set(user.to_dict())
     return user.id, user.name
+
+
+def admin_add_participant(name: str, language: str) -> Participant:
+    """
+    Admin-side manual check-in (for users without devices).
+    Returns the created Participant (may already be assigned a table if event started).
+    """
+    user = Participant(name=name, language=language)
+    user.check_in()
+    user, persisted = _assign_table_if_event_started(user)
+    if not persisted:
+        _participants_ref().document(user.id).set(user.to_dict())
+    return user
 
 def logout_user(id):
     query = _participants_ref().where(filter=FieldFilter("id", "==", id)).stream()

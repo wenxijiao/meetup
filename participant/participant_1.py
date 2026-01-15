@@ -100,16 +100,6 @@ else:
                 st.session_state.role = "Select your role"
                 st.rerun()
         else:
-            st.markdown(
-                """
-                <div class="hero-card">
-                    <span class="pill">参加者 / Participant</span>
-                    <span class="pill">Meetup</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
             name = current_participant.name
 
             col1, col2 = st.columns([3, 1])
@@ -164,12 +154,12 @@ else:
                 )
                 st.info(status_text)
             else:
-                st.info("イベントはまだ開始していません。主催者が開始するまでお待ちください。")
-                st.caption("The event has not started yet. Please wait for the organizer to begin...")
+                st.info("イベントはまだ開始していません。主催者が開始するまでお待ちください。"
+                "\n The event has not started yet. Please wait for the organizer to begin...")
+                # st.caption("The event has not started yet. Please wait for the organizer to begin...")
 
-        # If timer is active, refresh more frequently for smoother countdown.
-        refresh_ms = 5_000 if table_number and started_at else 30_000
-        st_autorefresh(interval=refresh_ms, key="auto_refresh")
+        # Refresh every 10 seconds to keep timer/status in sync.
+        st_autorefresh(interval=10_000, key="auto_refresh")
 
     except ValueError:
         st.session_state.role = "Select your role"

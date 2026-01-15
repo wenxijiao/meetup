@@ -1,7 +1,13 @@
 import streamlit as st
 import math
 import time
-from data.firebase_db import get_active_participants, start_next_round, start_round_timer, reset_event
+from data.firebase_db import (
+    get_active_participants,
+    start_next_round,
+    start_round_timer,
+    reset_event,
+    admin_add_participant,
+)
 
 
 @st.fragment(run_every=30)
@@ -107,6 +113,22 @@ if timer_btn:
         st.success("⏱️ Timer started!")
         time.sleep(1)
         st.rerun()
+
+st.divider()
+st.subheader("🧍 Manual Check-in (No Device)")
+st.caption("Use this when a participant cannot access the web app.")
+
+with st.form("manual_checkin_form"):
+    manual_name = st.text_input("Name")
+    manual_language = st.selectbox("Language", ["English", "Japanese"])
+    submitted = st.form_submit_button("Add Participant")
+    if submitted:
+        if not manual_name.strip():
+            st.error("Please enter a name.")
+        else:
+            user = admin_add_participant(manual_name, manual_language)
+            table_info = user.table_number or "-"
+            st.success(f"Added {user.name}. Table: {table_info}")
 
 st.write("")
 st.write("")
