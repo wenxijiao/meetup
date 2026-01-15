@@ -89,11 +89,10 @@ def ensure_table_activity(round_no: int, table_no: str, updated_by: str):
     Ensure an activity exists for (round, table). If missing, pick random and init state.
     If exists but missing assignment for current user (due to late join), extend assignments.
     """
-    participants = get_active_participants_by_table(table_no)
-    participant_ids = [p.id for p in participants]
-
     doc = get_table_activity(round_no, table_no)
     if not doc or not doc.get("activity_id"):
+        participants = get_active_participants_by_table(table_no)
+        participant_ids = [p.id for p in participants]
         rng = random.Random()
         activity_id = choose_random_activity_id(rng)
         state = create_activity_state(activity_id, participant_ids, rng)
@@ -111,39 +110,45 @@ def ensure_table_activity(round_no: int, table_no: str, updated_by: str):
     state = doc.get("state") or {}
     if activity_id == ACTIVITY_UNDERCOVER:
         assignments = state.get("assignments") or {}
-        missing = [pid for pid in participant_ids if pid not in assignments]
-        if missing:
-            pair = (state.get("pair") or {})
-            common = pair.get("common")
-            if common:
-                for pid in missing:
-                    assignments[pid] = common
-                state["assignments"] = assignments
-                doc["state"] = state
-                doc["updated_at"] = datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
-                set_table_activity_doc(round_no, table_no, {"state": state, "updated_at": doc["updated_at"]})
+        if updated_by not in assignments:
+            participants = get_active_participants_by_table(table_no)
+            participant_ids = [p.id for p in participants]
+            missing = [pid for pid in participant_ids if pid not in assignments]
+            if missing:
+                pair = (state.get("pair") or {})
+                common = pair.get("common")
+                if common:
+                    for pid in missing:
+                        assignments[pid] = common
+                    state["assignments"] = assignments
+                    doc["state"] = state
+                    doc["updated_at"] = datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
+                    set_table_activity_doc(round_no, table_no, {"state": state, "updated_at": doc["updated_at"]})
     elif activity_id == ACTIVITY_STORY_CHAIN:
         remaining = state.get("remaining") or {}
         quota = state.get("quota") or {}
         order = state.get("order") or []
-        missing = [pid for pid in participant_ids if pid not in remaining]
-        if missing:
-            rng = random.Random()
-            for pid in missing:
-                q = rng.choice([2, 2, 3])
-                quota[pid] = int(q)
-                remaining[pid] = int(q)
-                if pid not in order:
-                    order.append(pid)
-            state["quota"] = quota
-            state["remaining"] = remaining
-            state["order"] = order
-            state.setdefault("turn_idx", 0)
-            # Backward-compatible: older docs might not have a prompt yet.
-            state.setdefault("prompt", create_activity_state(ACTIVITY_STORY_CHAIN, participant_ids, rng).get("prompt"))
-            doc["state"] = state
-            doc["updated_at"] = datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
-            set_table_activity_doc(round_no, table_no, {"state": state, "updated_at": doc["updated_at"]})
+        if updated_by not in remaining:
+            participants = get_active_participants_by_table(table_no)
+            participant_ids = [p.id for p in participants]
+            missing = [pid for pid in participant_ids if pid not in remaining]
+            if missing:
+                rng = random.Random()
+                for pid in missing:
+                    q = rng.choice([2, 2, 3])
+                    quota[pid] = int(q)
+                    remaining[pid] = int(q)
+                    if pid not in order:
+                        order.append(pid)
+                state["quota"] = quota
+                state["remaining"] = remaining
+                state["order"] = order
+                state.setdefault("turn_idx", 0)
+                # Backward-compatible: older docs might not have a prompt yet.
+                state.setdefault("prompt", create_activity_state(ACTIVITY_STORY_CHAIN, participant_ids, rng).get("prompt"))
+                doc["state"] = state
+                doc["updated_at"] = datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
+                set_table_activity_doc(round_no, table_no, {"state": state, "updated_at": doc["updated_at"]})
     return doc
 
 
