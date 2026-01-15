@@ -1,6 +1,5 @@
 extra_streamlit_components==0.1.81
 firebase_admin==7.1.0
-pandas==2.3.3
 protobuf==6.33.2
 pytz==2024.2
 streamlit==1.51.0
