@@ -32,7 +32,7 @@ with top_r:
             firebase_db.void_payment_code(last_code, voided_by="cashier", reason="manual_next")
         st.rerun()
 
-@st.fragment(run_every=3)
+@st.fragment(run_every=10)
 def render_login_code():
     code = firebase_db.get_next_unused_payment_code()
     if not code:
