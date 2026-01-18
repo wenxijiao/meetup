@@ -261,7 +261,7 @@ admin_simulate = st.Page(
 
 cashier = st.Page(
     "admin/cashier.py",
-    title="Login Code / QR",
+    title="Login Code / QR Code",
     icon=":material/payments:",
     default=(role == "Cashier"),
 )
