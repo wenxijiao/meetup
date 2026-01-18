@@ -94,61 +94,61 @@ UNDERCOVER_WORD_PAIRS = [
     ("Motivated at night / 夜にやる気", "Motivated in morning / 朝にやる気"),
     ("Emotionally tired / 心が疲れた", "Physically tired / 体が疲れた"),
 
-    # 📱 现代人日常（笑点密集）
+    # 📱 Modern phone habits / スマホあるある
     ("Scrolling endlessly / 無限スクロール", "Just checking one thing / ちょっと見るだけ"),
     ("Saved posts / 保存した投稿", "Liked but forgotten / いいねして忘れる"),
     ("Reply immediately / 即レス", "Reply later / 後で返す"),
     ("Seen but no reply / 既読スルー", "Forgot to reply / 返信忘れ"),
 
-    # 🎮 娱乐 & 沉迷
+    # 🎮 Entertainment & getting hooked / 娯楽・ハマり
     ("Casual game / カジュアルゲーム", "Addictive game / 中毒性あるゲーム"),
     ("Story game / ストーリー重視", "Multiplayer game / 対戦ゲーム"),
     ("Watching streams / 配信見る", "Watching highlights / 切り抜き見る"),
 
-    # 🌃 场景感拉满
+    # 🌃 Vibes / 雰囲気
     ("Late night walk / 夜散歩", "Early morning walk / 朝散歩"),
     ("Rain after midnight / 深夜の雨", "Rain before dawn / 明け方の雨"),
     ("City lights / 夜景", "Street lights / 街灯"),
     ("Empty station / 無人駅", "Quiet platform / 静かなホーム"),
 
-    # 😈 社交潜规则（非常好笑）
+    # 😈 Social "rules" / 社交あるある
     ("Pretending to listen / 聞いてるふり", "Actually listening / ちゃんと聞いてる"),
     ("Nodding politely / とりあえずうなずく", "Asking follow-up / ちゃんと質問する"),
     ("Laughing politely / 愛想笑い", "Laughing too hard / 笑いすぎ"),
     ("Remembering names / 名前覚えてる", "Forgetting names / 名前忘れる"),
 
-    # 📱 消息 & 社交地狱（核爆区）
+    # 📱 Messages & social hell / メッセージ地獄
     ("Reply immediately / 即レス", "Reply when free / 手が空いたら返す"),
     ("Seen but no reply / 既読スルー", "Read but forgot / 読んだけど忘れた"),
     ("Typing then stop / 入力中やめる", "Thinking what to say / 返事考えてる"),
     ("Short reply / 短文返信", "Emoji reply / スタンプ返信"),
     ("Reply with sticker / スタンプだけ", "Reply with haha / 笑だけ返す"),
 
-    # 🕰️ 时间感 & 拖延症
+    # 🕰️ Time sense & procrastination / 時間感覚・先延ばし
     ("Do it later / あとでやる", "Do it tomorrow / 明日やる"),
     ("Almost on time / ほぼ時間通り", "Slightly late / ちょい遅れ"),
     ("Leaving now / 今出る", "Leaving soon / そろそろ出る"),
     ("Five more minutes / あと5分", "Just one more thing / もう一個だけ"),
 
-    # 🧠 内心活动（开始精神裸奔）
+    # 🧠 Inner thoughts / 心の声
     ("Overthinking replies / 返信考えすぎ", "Rewriting replies / 書き直しすぎ"),
     ("Pretending not to care / 気にしてないふり", "Actually caring a lot / めっちゃ気にする"),
     ("Want to say something / 言いたいことある", "Decide not to say / 言わない選択"),
     ("Waiting for reply / 返信待ってる", "Pretending not waiting / 待ってないふり"),
 
-    # 😶 社交场面（全员共鸣）
+    # 😶 Social situations / 社交シーン
     ("Listening quietly / 静かに聞く", "Thinking what to say / 次何言うか考える"),
     ("Nodding a lot / めっちゃうなずく", "Saying 'yeah' a lot / そうだね多用"),
     ("Laughing at wrong timing / 笑うタイミング間違える", "Laughing too late / 笑うの遅れる"),
     ("Joining late conversation / 話題途中参加", "Missing the context / 文脈わからん"),
 
-    # 🛌 生活废度（真实到不行）
+    # 🛌 Lazy life / だらだら生活
     ("Going to bed early / 早く寝るつもり", "Scrolling in bed / ベッドでスマホ"),
     ("Just resting / 休んでるだけ", "Doing nothing / 何もしてない"),
     ("Busy but unproductive / 忙しいけど何もしてない", "Free but tired / 暇だけど疲れてる"),
     ("Too lazy to cook / 作るのだるい", "Too lazy to order / 頼むのもだるい"),
 
-    # 🫠 情绪灰区（非常危险但好笑）
+    # 🫠 Emotional gray zone / 微妙な感情
     ("Feeling fine / 別に普通", "Not feeling bad / 悪くはない"),
     ("Kind of tired / なんか疲れた", "Mentally tired / 心が疲れた"),
     ("Need alone time / 一人になりたい", "Don't want to be lonely / 寂しくはなりたくない"),

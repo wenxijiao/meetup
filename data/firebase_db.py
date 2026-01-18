@@ -505,6 +505,51 @@ def get_next_unused_payment_code() -> str | None:
     return str(docs[0].id)
 
 @firestore.transactional
+def _void_payment_code_txn(transaction, code_ref, *, voided_by: str, reason: str | None):
+    snap = code_ref.get(transaction=transaction)
+    if not snap.exists:
+        return False
+    data = snap.to_dict() or {}
+    if data.get("status") != "unused":
+        # Already used/voided -> nothing to do
+        return False
+
+    transaction.update(
+        code_ref,
+        {
+            "status": "void",
+            "voided_at": _now_str(),
+            "voided_by": (voided_by or "").strip() or "cashier",
+            "void_reason": (reason or "").strip() or None,
+        },
+    )
+    transaction.set(
+        _state_ref(),
+        {"payment_codes_unused": firestore.Increment(-1)},
+        merge=True,
+    )
+    return True
+
+
+def void_payment_code(code: str, *, voided_by: str = "cashier", reason: str | None = "manual_skip") -> bool:
+    """
+    Mark a payment code as unusable (void) so cashier can move on if a code is problematic.
+    - Only affects codes with status == 'unused'
+    - Transaction-safe
+    Returns True if the code was voided, False otherwise.
+    """
+    code = (code or "").strip()
+    if not code:
+        return False
+    code_ref = _payment_codes_ref().document(code)
+    transaction = db.transaction()
+    ok = bool(_void_payment_code_txn(transaction, code_ref, voided_by=voided_by, reason=reason))
+    if ok:
+        # Keep the pipeline filled so cashier never gets stuck.
+        ensure_payment_codes(min_unused=1, created_by="auto")
+    return ok
+
+@firestore.transactional
 def _redeem_payment_code_txn(transaction, code_ref, *, used_by_id: str, used_by_name: str):
     snap = code_ref.get(transaction=transaction)
     if not snap.exists:
