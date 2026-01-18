@@ -22,12 +22,22 @@ if qr_path.exists():
         st.image(str(qr_path), caption="Scan to open the app / アプリを開く", width="stretch")
 
 st.divider()
-st.subheader("登录码 / Login code")
+top_l, top_r = st.columns([0.7, 0.3], vertical_alignment="center")
+with top_l:
+    st.subheader("Login code / ログインコード")
+with top_r:
+    if st.button("Refresh now / 更新", type="secondary", width="stretch"):
+        st.rerun()
 
-code = firebase_db.get_next_unused_payment_code()
-if not code:
-    st.warning("No available code. Please refresh or contact admin. / コードがありません。更新するか管理者に連絡してください。")
-else:
+@st.fragment(run_every=3)
+def render_login_code():
+    code = firebase_db.get_next_unused_payment_code()
+    if not code:
+        st.warning(
+            "No available code. Please refresh or contact admin. / コードがありません。更新するか管理者に連絡してください。"
+        )
+        return
+
     st.markdown(
         f"""
         <div style="
@@ -44,3 +54,6 @@ else:
         """,
         unsafe_allow_html=True,
     )
+
+
+render_login_code()
