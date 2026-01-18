@@ -23,7 +23,7 @@ META = ActivityMeta(
 
 # Similar-but-different word pairs for Undercover (common_word, undercover_word)
 UNDERCOVER_WORD_PAIRS = [
-    # 食物 / 饮料（最容易玩嗨）
+    # Food / Drinks / 食べ物・飲み物
     ("Coffee / コーヒー", "Americano / アメリカーノ"),
     ("Tea / お茶", "Milk Tea / ミルクティー"),
     ("Sushi / 寿司", "Sashimi / 刺身"),
@@ -33,42 +33,42 @@ UNDERCOVER_WORD_PAIRS = [
     ("Ice Cream / アイスクリーム", "Gelato / ジェラート"),
     ("Beer / ビール", "Highball / ハイボール"),
 
-    # 日常习惯（会开始互相试探）
+    # Daily habits / 日常の習慣
     ("Wake up early / 早起き", "Stay up late / 夜更かし"),
     ("Shower in the morning / 朝シャワー", "Shower at night / 夜シャワー"),
     ("Eat alone / 一人で食べる", "Eat together / みんなで食べる"),
     ("Listen to music / 音楽を聴く", "Listen to podcasts / ポッドキャストを聴く"),
 
-    # 情绪 / 状态（非常容易暴露）
+    # Feelings / 状態
     ("Relaxing / リラックス", "Chill / まったり"),
     ("Lonely / 寂しい", "Quiet / 静か"),
     ("Excited / ワクワク", "Nervous / ドキドキ"),
     ("Tired / 疲れた", "Sleepy / 眠い"),
 
-    # 场景感（描述会越来越怪）
+    # Scenes / 場面
     ("Rainy night / 雨の夜", "Cloudy evening / 曇りの夕方"),
     ("Empty café / 空いているカフェ", "Quiet library / 静かな図書館"),
     ("Late train / 終電", "Early train / 始発"),
     ("Small town / 小さな町", "Suburb / 郊外"),
 
-    # 社交 & 现代生活（最好笑的一组）
+    # Social / Modern life / 現代生活
     ("Text message / メッセージ", "Voice message / ボイスメッセージ"),
     ("Call / 電話", "Video call / ビデオ通話"),
     ("Instagram / インスタ", "Stories / ストーリー"),
     ("YouTube / YouTube", "Short videos / ショート動画"),
 
-    # 性格 & 行为（开始心理博弈）
+    # Personality / 性格
     ("Introvert / 内向的", "Shy / 人見知り"),
     ("Careful / 慎重", "Overthinking / 考えすぎ"),
     ("Spontaneous / 思いつき", "Impulsive / 衝動的"),
     ("Independent / 自立", "Lonely but fine / 一人でも平気"),
 
-    # 稍微阴一点（非常适合熟人）
+    # Slightly darker / ちょっと重め
     ("Overthinking at night / 夜に考えすぎる", "Suddenly sad at night / 夜に急に落ち込む"),
     ("Pretending to be fine / 大丈夫なふり", "Not explaining feelings / 気持ちを説明しない"),
     ("Missing someone / 誰かを思い出す", "Thinking about the past / 過去を考える"),
 
-        # ☕ 饮食细分地狱
+    # ☕ Coffee details
     ("Latte / ラテ", "Cappuccino / カプチーノ"),
     ("Black coffee / ブラックコーヒー", "No sugar coffee / 無糖コーヒー"),
     ("Fried chicken / フライドチキン", "Karaage / 唐揚げ"),
@@ -76,19 +76,19 @@ UNDERCOVER_WORD_PAIRS = [
     ("Street food / 屋台", "Food truck / フードトラック"),
     ("Convenience store / コンビニ", "Supermarket / スーパー"),
 
-    # 🍺 夜生活 & 社畜气息
+    # 🍺 Night life
     ("After work drink / 仕事後の一杯", "Weekend drink / 週末の一杯"),
     ("Last train / 終電", "Missed last train / 終電逃す"),
     ("Quiet bar / 静かなバー", "Crowded izakaya / 賑やかな居酒屋"),
     ("Beer garden / ビアガーデン", "Rooftop bar / ルーフトップバー"),
 
-    # 🛋️ 生活方式（开始互相审判）
+    # 🛋️ Lifestyle
     ("Stay home / 家にこもる", "Go out alone / 一人で外出"),
     ("Watching series / 一気見", "Watching clips / 切り抜き見る"),
     ("Cooking at home / 自炊", "Ordering delivery / デリバリー"),
     ("Clean room / きれいな部屋", "Messy but cozy / 散らかってるけど落ち着く"),
 
-    # 🧠 精神状态（非常容易社死）
+    # 🧠 Mindset
     ("Overthinking / 考えすぎ", "Being realistic / 現実的"),
     ("Low energy / 元気ない", "Calm mood / 落ち着いてる"),
     ("Motivated at night / 夜にやる気", "Motivated in morning / 朝にやる気"),

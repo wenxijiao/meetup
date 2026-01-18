@@ -1,8 +1,11 @@
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 from data.data_structure import Participant
 from data.logic import assign_tables
+import secrets
+import string
+from google.api_core.exceptions import AlreadyExists
 from activities.registry import (
     create_activity_state,
     choose_random_activity_id,
@@ -26,6 +29,10 @@ tz = pytz.timezone("Pacific/Auckland")
 META_COLLECTION = "meta"
 STATE_DOC_ID = "state"
 ACTIVITIES_DOC_ID = "activities"
+PAYMENT_CODES_COLLECTION = "payment_codes"
+
+# Data retention (best-effort cleanup). We store each event under meetups/{YYYY-MM-DD}/...
+RETENTION_DAYS = 7
 
 def _today_doc():
     return db.collection(ROOT_COLLECTION).document(str(datetime.now(tz=tz).date()))
@@ -36,8 +43,65 @@ def _state_ref():
 def _activities_root_ref():
     return _today_doc().collection(META_COLLECTION).document(ACTIVITIES_DOC_ID)
 
+def _payment_codes_ref():
+    return _today_doc().collection(PAYMENT_CODES_COLLECTION)
+
 def _activity_ref(round_no: int, table_no: str):
     return _activities_root_ref().collection(str(round_no)).document(str(table_no))
+
+def _delete_collection_recursive(col_ref, *, batch_size: int = 200) -> int:
+    """
+    Recursively delete all documents in a collection (and their subcollections).
+    Returns number of deleted documents (best-effort count).
+    """
+    deleted = 0
+    while True:
+        snaps = list(col_ref.limit(batch_size).stream())
+        if not snaps:
+            break
+
+        batch = db.batch()
+        for snap in snaps:
+            # delete subcollections first
+            for sub_col in snap.reference.collections():
+                deleted += _delete_collection_recursive(sub_col, batch_size=batch_size)
+            batch.delete(snap.reference)
+            deleted += 1
+        batch.commit()
+    return deleted
+
+
+def _delete_document_recursive(doc_ref, *, batch_size: int = 200) -> int:
+    """
+    Recursively delete a document and all its subcollections.
+    Returns number of deleted documents including itself (best-effort count).
+    """
+    deleted = 0
+    for col in doc_ref.collections():
+        deleted += _delete_collection_recursive(col, batch_size=batch_size)
+    doc_ref.delete()
+    deleted += 1
+    return deleted
+
+
+def cleanup_old_meetups(*, retention_days: int = RETENTION_DAYS, batch_size: int = 200) -> int:
+    """
+    Delete meetup documents older than retention_days (based on doc id 'YYYY-MM-DD').
+    This keeps Firestore storage small and avoids accumulating old activity data.
+    Returns number of top-level meetup docs deleted (not total sub-doc count).
+    """
+    cutoff_date = datetime.now(tz=tz).date() - timedelta(days=int(retention_days))
+    cutoff_id = str(cutoff_date)  # 'YYYY-MM-DD'
+
+    root = db.collection(ROOT_COLLECTION)
+    snaps = list(root.stream())
+    old = [s for s in snaps if isinstance(s.id, str) and s.id < cutoff_id]
+
+    deleted_top = 0
+    for s in old:
+        _delete_document_recursive(s.reference, batch_size=batch_size)
+        deleted_top += 1
+    return deleted_top
 
 def get_event_state():
     doc = _state_ref().get()
@@ -50,6 +114,9 @@ def get_event_state():
             "round_started_at": None,
             "round_duration_min": None,
             "table_counts": {},
+            "last_cleanup_date": None,
+            "payment_codes_total": 0,
+            "payment_codes_unused": 0,
         }
     data = doc.to_dict() or {}
     data.setdefault("started", False)
@@ -59,6 +126,9 @@ def get_event_state():
     data.setdefault("min_per_table", None)
     data.setdefault("round_started_at", None)
     data.setdefault("round_duration_min", None)
+    data.setdefault("last_cleanup_date", None)
+    data.setdefault("payment_codes_total", 0)
+    data.setdefault("payment_codes_unused", 0)
     return data
 
 def set_event_state(state: dict):
@@ -336,6 +406,198 @@ def logup_user(name, language, id=None):
         _participants_ref().document(user.id).set(user.to_dict())
     return user.id, user.name
 
+def _now_str():
+    return datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
+
+def _generate_code(length: int = 6) -> str:
+    # Digits-only is easiest to speak at a front desk.
+    alphabet = string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(int(length)))
+
+def _create_single_payment_code(*, code_length: int = 6, created_by: str = "auto") -> str:
+    """
+    Create ONE unused payment code document (doc id == code).
+    Retries on rare collisions.
+    Returns the created code.
+    """
+    code_length = int(code_length)
+    now = _now_str()
+    for _ in range(30):
+        code = _generate_code(code_length)
+        ref = _payment_codes_ref().document(code)
+        try:
+            ref.create(
+                {
+                    "code": code,
+                    "status": "unused",
+                    "created_at": now,
+                    "created_by": created_by,
+                }
+            )
+            return code
+        except AlreadyExists:
+            continue
+    raise RuntimeError("Failed to generate a unique payment code (too many collisions)")
+
+def ensure_payment_codes(*, min_unused: int = 1, code_length: int = 6, created_by: str = "auto") -> int:
+    """
+    Ensure there are at least min_unused unused codes for today.
+    Returns number of newly created codes.
+    """
+    state = get_event_state()
+    unused = int(state.get("payment_codes_unused") or 0)
+    need = max(0, int(min_unused) - unused)
+    if need <= 0:
+        return 0
+
+    created = 0
+    for _ in range(need):
+        _create_single_payment_code(code_length=code_length, created_by=created_by)
+        created += 1
+
+    _state_ref().set(
+        {
+            "payment_codes_total": firestore.Increment(created),
+            "payment_codes_unused": firestore.Increment(created),
+        },
+        merge=True,
+    )
+    return created
+
+def generate_payment_codes(*, n: int = 50, code_length: int = 6, created_by: str = "cashier") -> int:
+    """
+    Create N new unused payment codes for today.
+    Returns number of codes actually created.
+    """
+    n = int(n)
+    if n <= 0:
+        return 0
+    code_length = int(code_length)
+    created = 0
+    for _ in range(n):
+        _create_single_payment_code(code_length=code_length, created_by=created_by)
+        created += 1
+
+    # Update counters (fast reads on cashier page)
+    _state_ref().set(
+        {
+            "payment_codes_total": firestore.Increment(created),
+            "payment_codes_unused": firestore.Increment(created),
+        },
+        merge=True,
+    )
+    return created
+
+def get_next_unused_payment_code() -> str | None:
+    """
+    Returns one unused code (best-effort). Avoid scanning by limiting to 1.
+    """
+    q = _payment_codes_ref().where(filter=FieldFilter("status", "==", "unused")).limit(1).stream()
+    docs = list(q)
+    if not docs:
+        # Auto-create so the cashier never gets stuck.
+        ensure_payment_codes(min_unused=1, created_by="auto")
+        q2 = _payment_codes_ref().where(filter=FieldFilter("status", "==", "unused")).limit(1).stream()
+        docs2 = list(q2)
+        if not docs2:
+            return None
+        return str(docs2[0].id)
+    return str(docs[0].id)
+
+@firestore.transactional
+def _redeem_payment_code_txn(transaction, code_ref, *, used_by_id: str, used_by_name: str):
+    snap = code_ref.get(transaction=transaction)
+    if not snap.exists:
+        raise ValueError("Invalid code")
+    data = snap.to_dict() or {}
+    if data.get("status") != "unused":
+        raise ValueError("Code already used")
+
+    transaction.update(
+        code_ref,
+        {
+            "status": "used",
+            "used_at": _now_str(),
+            "used_by_id": used_by_id,
+            "used_by_name": used_by_name,
+        },
+    )
+    transaction.set(
+        _state_ref(),
+        {"payment_codes_unused": firestore.Increment(-1)},
+        merge=True,
+    )
+    return True
+
+def redeem_payment_code(code: str, *, used_by_id: str, used_by_name: str) -> bool:
+    """
+    Atomically mark a payment code as used (one-time).
+    Raises ValueError if invalid/used.
+    """
+    code = (code or "").strip()
+    if not code:
+        raise ValueError("Code is required")
+    code_ref = _payment_codes_ref().document(code)
+    transaction = db.transaction()
+    ok = bool(_redeem_payment_code_txn(transaction, code_ref, used_by_id=used_by_id, used_by_name=used_by_name))
+    # Auto-generate the "next" code so cashier always has codes without clicking.
+    if ok:
+        ensure_payment_codes(min_unused=1, created_by="auto")
+    return ok
+
+def checkin_with_optional_payment_code(id: str | None, name: str, language: str, payment_code: str | None):
+    """
+    Unified participant check-in:
+    - If existing participant is already Checked In with a table: resume (no code).
+    - Else if existing participant has paid=True: allow check-in (no code).
+    - Else require a valid unused payment_code (redeem once), then mark paid on participant.
+    Returns (participant_id, final_name).
+    """
+    name = (name or "").strip()
+    language = (language or "").strip()
+    if not name or not language:
+        raise ValueError("Name and language are required")
+
+    existing = None
+    if id:
+        try:
+            existing = get_my_status(id)
+        except Exception:
+            existing = None
+
+    # Resume session: already checked in & seated
+    if existing and existing.status == "Checked In" and existing.table_number:
+        existing.name = name.strip().title()
+        existing.language = language
+        _participants_ref().document(existing.id).set(existing.to_dict())
+        return existing.id, existing.name
+
+    # Already paid today -> no need to redeem again
+    if existing and bool(getattr(existing, "paid", False)):
+        participant_id, final_name = login_user(existing.id, name, language)
+        return participant_id, final_name
+
+    # Need a fresh one-time code
+    if not payment_code:
+        raise ValueError("Payment code is required")
+
+    participant_id = existing.id if existing else (id or Participant(name=name, language=language).id)
+    # redeem first (atomic). If later writes fail, code is still consumed (acceptable for simplicity).
+    redeem_payment_code(payment_code, used_by_id=participant_id, used_by_name=name.strip().title())
+
+    # check-in (create or update participant)
+    if existing:
+        participant_id, final_name = login_user(existing.id, name, language)
+    else:
+        participant_id, final_name = logup_user(name, language, id=participant_id)
+
+    # mark paid on participant doc
+    _participants_ref().document(participant_id).set(
+        {"paid": True, "paid_code": (payment_code or "").strip(), "paid_at": _now_str()},
+        merge=True,
+    )
+    return participant_id, final_name
+
 
 def admin_add_participant(name: str, language: str) -> Participant:
     """
@@ -477,12 +739,25 @@ def _assign_table_if_event_started(user: Participant):
     return user, True
 
 def start_next_round(target_per_table: int, min_per_table: int):
+    # Best-effort cleanup to avoid accumulating old data in Firestore.
+    # Throttled: run at most once per natural day.
+    state = get_event_state()
+    today_id = str(datetime.now(tz=tz).date())  # 'YYYY-MM-DD'
+    if state.get("last_cleanup_date") != today_id:
+        try:
+            cleanup_old_meetups(retention_days=RETENTION_DAYS)
+        except Exception:
+            # Cleanup is non-critical; never block starting a round due to cleanup failure.
+            pass
+        state["last_cleanup_date"] = today_id
+        # Persist immediately so repeated clicks today won't redo cleanup.
+        set_event_state(state)
+
     active_participants = get_active_participants()
     total_count = len(active_participants)
     if total_count == 0:
         return 0
 
-    state = get_event_state()
     next_round = int(state.get("current_round") or 0) + 1
 
     updated_participants, num_tables = assign_tables(

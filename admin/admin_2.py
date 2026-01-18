@@ -2,9 +2,10 @@ import streamlit as st
 import pandas as pd
 import time
 from data.firebase_db import get_all_participants, logout_user, get_active_participants
+from admin.participant_list_component import render_participant_list_table
 
-st.title("📊 Live Data Dashboard")
-st.caption("Real-time monitoring of participants and stats.")
+st.title("📊 Live Data Dashboard / ダッシュボード")
+st.caption("Real-time monitoring of participants and stats. / 参加者と統計をリアルタイム表示。")
 
 if st.button("🔄 Refresh Data"):
     st.rerun()
@@ -26,36 +27,7 @@ with col3:
 
 st.divider()
 
-st.subheader("📋 Participant List") 
-only_checked_in = st.checkbox("Only Show Checked-In Participants")
-
-if only_checked_in:
-    participants_list = active_participants
-else:
-    participants_list = participants
-
-if participants_list:
-    data = []
-    for p in participants_list:
-        data.append({
-            "Name": p.name,
-            "Languages": ", ".join(p.language) if isinstance(p.language, list) else str(p.language),
-            "Current Table": p.table_number if p.table_number else "-",
-            "Status": p.status
-        })
-    
-    df = pd.DataFrame(data)
-    
-    st.dataframe(
-        df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Status": st.column_config.TextColumn("Status"),
-        }
-    )
-else:
-    st.info("No data available yet.")
+render_participant_list_table(participants, active_participants, default_only_checked_in=False)
 
 if total_count > 0:
     st.divider()
