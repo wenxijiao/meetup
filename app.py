@@ -226,6 +226,8 @@ role = st.session_state.role
 
 logout_page = st.Page(logout, title="ログアウト / Log out", icon=":material/logout:")
 settings = st.Page("settings.py", title="設定 / Settings", icon=":material/settings:")
+showcase = st.Page("showcase.py", title="Demo / Showcase", icon=":material/visibility:")
+ui_preview = st.Page("ui_preview.py", title="UI Preview", icon=":material/palette:")
 
 participant = st.Page(
     "participant/participant_1.py",
@@ -296,6 +298,6 @@ elif st.session_state.role == "Admin":
 if len(page_dict) > 0:
     pg = st.navigation({"Account": account_pages} | page_dict)
 else:
-    pg = st.navigation([st.Page(login, title="Log in")])
+    pg = st.navigation([st.Page(login, title="Log in"), ui_preview, showcase])
 
 pg.run()
