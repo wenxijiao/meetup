@@ -18,6 +18,9 @@ class Participant:
         paid: bool = False,
         paid_code: str | None = None,
         paid_at: str | None = None,
+        created_source: str = "web",
+        created_by_role: str | None = None,
+        created_at: str | None = None,
     ):
         self.id = id or str(uuid.uuid4())
         self.name = name.strip().title()
@@ -30,11 +33,17 @@ class Participant:
         self.paid = bool(paid)
         self.paid_code = paid_code
         self.paid_at = paid_at
+        # For admin/cashier manual check-ins (participants without devices)
+        self.created_source = (created_source or "").strip() or "web"  # "web" | "manual" | ...
+        self.created_by_role = (created_by_role or "").strip() or None  # "admin" | "cashier" | ...
+        self.created_at = created_at
 
     def check_in(self):
         now_str = str(datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S"))
         self.check_in_time = now_str
         self.status = "Checked In"
+        if not self.created_at:
+            self.created_at = now_str
 
     def check_out(self):
         now_str = str(datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S"))
@@ -55,6 +64,9 @@ class Participant:
             "paid": bool(self.paid),
             "paid_code": self.paid_code,
             "paid_at": self.paid_at,
+            "created_source": self.created_source,
+            "created_by_role": self.created_by_role,
+            "created_at": self.created_at,
         }
 
     @classmethod
@@ -71,5 +83,8 @@ class Participant:
             paid=bool(data.get("paid", False)),
             paid_code=data.get("paid_code"),
             paid_at=data.get("paid_at"),
+            created_source=data.get("created_source", "web"),
+            created_by_role=data.get("created_by_role"),
+            created_at=data.get("created_at") or data.get("check_in_time"),
         )
     

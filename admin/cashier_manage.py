@@ -39,7 +39,7 @@ with st.form("cashier_manual_checkin_form"):
         if not manual_name.strip():
             st.error("Please enter a name. / 名前を入力してください。")
         else:
-            user = firebase_db.admin_add_participant(manual_name, manual_language)
+            user = firebase_db.admin_add_participant(manual_name, manual_language, created_by_role="cashier")
             table_info = user.table_number or "-"
             st.success(f"Added / 追加しました: {user.name} | Table: {table_info}")
 

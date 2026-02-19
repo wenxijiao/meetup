@@ -12,7 +12,7 @@ import hashlib
 sys.path.append(str(Path(__file__).parent))
 import data  # noqa: F401
 
-from data.firebase_db import login_user, logup_user, get_my_status, checkin_with_optional_payment_code
+from data.firebase_db import get_my_status, checkin_with_optional_payment_code, get_event_state
 
 cookie_manager = stx.CookieManager(key="meetup_manager")
 cookie_id = cookie_manager.get(cookie="uuid")
@@ -134,7 +134,18 @@ def login():
                 "言語 / Language", 
                 ["English", "Japanese"]
             )
-            payment_code = st.text_input("支払いコード / Payment code", help="Front desk will give you a one-time code after payment.")
+            # Payment code requirement controlled by Admin (default: required)
+            try:
+                state = get_event_state()
+            except Exception:
+                state = {}
+            payment_required = bool(state.get("payment_code_required", True))
+            payment_code = None
+            if payment_required:
+                payment_code = st.text_input(
+                    "支払いコード / Payment code",
+                    help="Front desk will give you a one-time code after payment.",
+                )
             submitted = st.form_submit_button("✅ Log in")
             
             if submitted:

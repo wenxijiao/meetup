@@ -117,6 +117,9 @@ def get_event_state():
             "last_cleanup_date": None,
             "payment_codes_total": 0,
             "payment_codes_unused": 0,
+            # Participant payment gate (one-time payment code).
+            # If True, participant login requires a valid unused payment code unless already paid today.
+            "payment_code_required": True,
         }
     data = doc.to_dict() or {}
     data.setdefault("started", False)
@@ -129,6 +132,7 @@ def get_event_state():
     data.setdefault("last_cleanup_date", None)
     data.setdefault("payment_codes_total", 0)
     data.setdefault("payment_codes_unused", 0)
+    data.setdefault("payment_code_required", True)
     return data
 
 def set_event_state(state: dict):
@@ -622,6 +626,26 @@ def checkin_with_optional_payment_code(id: str | None, name: str, language: str,
         participant_id, final_name = login_user(existing.id, name, language)
         return participant_id, final_name
 
+    # Admin may disable payment code requirement for today/event.
+    # If disabled, we treat the participant as paid so future logins won't re-prompt.
+    try:
+        state = get_event_state()
+    except Exception:
+        state = {}
+    payment_required = bool(state.get("payment_code_required", True))
+    if not payment_required:
+        # check-in (create or update participant)
+        if existing:
+            participant_id, final_name = login_user(existing.id, name, language)
+        else:
+            participant_id, final_name = logup_user(name, language, id=(id or None))
+
+        _participants_ref().document(participant_id).set(
+            {"paid": True, "paid_code": "waived", "paid_at": _now_str()},
+            merge=True,
+        )
+        return participant_id, final_name
+
     # Need a fresh one-time code
     if not payment_code:
         raise ValueError("Payment code is required")
@@ -644,13 +668,20 @@ def checkin_with_optional_payment_code(id: str | None, name: str, language: str,
     return participant_id, final_name
 
 
-def admin_add_participant(name: str, language: str) -> Participant:
+def admin_add_participant(name: str, language: str, *, created_by_role: str = "admin") -> Participant:
     """
     Admin-side manual check-in (for users without devices).
     Returns the created Participant (may already be assigned a table if event started).
     """
     user = Participant(name=name, language=language)
+    # Mark this record so dashboards can list "no-device/manual" participants separately.
+    user.created_source = "manual"
+    user.created_by_role = (created_by_role or "").strip() or "admin"
     user.check_in()
+    # Manual check-in implies front desk has handled payment; allow later web login without code.
+    user.paid = True
+    user.paid_code = "manual"
+    user.paid_at = _now_str()
     user, persisted = _assign_table_if_event_started(user)
     if not persisted:
         _participants_ref().document(user.id).set(user.to_dict())

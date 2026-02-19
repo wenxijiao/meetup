@@ -7,6 +7,8 @@ from data.firebase_db import (
     start_round_timer,
     reset_event,
     admin_add_participant,
+    get_event_state,
+    set_event_state,
 )
 
 
@@ -126,7 +128,7 @@ with st.form("manual_checkin_form"):
         if not manual_name.strip():
             st.error("Please enter a name.")
         else:
-            user = admin_add_participant(manual_name, manual_language)
+            user = admin_add_participant(manual_name, manual_language, created_by_role="admin")
             table_info = user.table_number or "-"
             st.success(f"Added {user.name}. Table: {table_info}")
 
@@ -140,3 +142,26 @@ with st.expander("⚠️ Danger Zone (Reset)"):
         st.toast("Event has been reset.", icon="🔥")
         time.sleep(2)
         st.rerun()
+
+st.divider()
+
+st.subheader("💳 Payment Code Requirement")
+st.caption("Control whether participants must enter a one-time payment code to check in. / 支払いコード必須を切り替え。")
+
+state = get_event_state()
+payment_required = bool(state.get("payment_code_required", True))
+
+col_pay1, col_pay2 = st.columns([0.45, 0.55], vertical_alignment="center")
+with col_pay1:
+    payment_required_ui = st.checkbox(
+        "Require payment code / 支払いコード必須",
+        value=payment_required,
+    )
+with col_pay2:
+    st.caption("If disabled, participants can check in without a code (and will be marked as paid=waived).")
+
+if st.button("Save / 保存", type="primary", width="stretch"):
+    set_event_state({"payment_code_required": bool(payment_required_ui)})
+    st.toast("Saved / 保存しました", icon="✅")
+    time.sleep(0.6)
+    st.rerun()

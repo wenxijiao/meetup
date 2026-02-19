@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 from data.firebase_db import get_all_participants, logout_user, get_active_participants
-from admin.participant_list_component import render_participant_list_table
+from admin.participant_list_component import render_participant_list_table, render_manual_added_section
 
 st.title("📊 Live Data Dashboard / ダッシュボード")
 st.caption("Real-time monitoring of participants and stats. / 参加者と統計をリアルタイム表示。")
@@ -28,6 +28,9 @@ with col3:
 st.divider()
 
 render_participant_list_table(participants, active_participants, default_only_checked_in=False)
+
+st.divider()
+render_manual_added_section(participants, active_participants)
 
 if total_count > 0:
     st.divider()
