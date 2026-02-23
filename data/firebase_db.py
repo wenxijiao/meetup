@@ -687,6 +687,73 @@ def admin_add_participant(name: str, language: str, *, created_by_role: str = "a
         _participants_ref().document(user.id).set(user.to_dict())
     return user
 
+
+@firestore.transactional
+def _admin_override_table_txn(transaction, participant_ref, state_ref, *, new_table_no: str, updated_by: str):
+    p_snap = participant_ref.get(transaction=transaction)
+    if not p_snap.exists:
+        raise ValueError("Participant not found")
+    p_data = p_snap.to_dict() or {}
+
+    state_snap = state_ref.get(transaction=transaction)
+    state = (state_snap.to_dict() or {}) if state_snap.exists else {}
+
+    prev_table = p_data.get("table_number")
+    new_table_no = str(new_table_no)
+
+    # Update participant table_number only (do NOT append to history; next round assignment shouldn't be affected).
+    patch = {
+        "table_number": new_table_no,
+        "table_override": {
+            "at": _now_str(),
+            "by": (updated_by or "").strip() or "admin",
+            "from": prev_table,
+            "to": new_table_no,
+            "round": int(state.get("current_round") or 0),
+        },
+    }
+    transaction.set(participant_ref, patch, merge=True)
+
+    # Keep event_state.table_counts consistent so late joiners seating stays sane.
+    if bool(state.get("started")):
+        table_counts = dict(state.get("table_counts") or {})
+        if prev_table and prev_table != new_table_no:
+            if str(prev_table) in table_counts:
+                table_counts[str(prev_table)] = max(0, int(table_counts.get(str(prev_table), 0)) - 1)
+                if int(table_counts.get(str(prev_table), 0)) <= 0:
+                    table_counts.pop(str(prev_table), None)
+        if new_table_no and prev_table != new_table_no:
+            table_counts[str(new_table_no)] = int(table_counts.get(str(new_table_no), 0)) + 1
+        transaction.set(state_ref, {"table_counts": table_counts}, merge=True)
+
+    return {"from": prev_table, "to": new_table_no}
+
+
+def admin_override_participant_table(participant_id: str, table_no: str, *, updated_by: str = "admin") -> dict:
+    """
+    Admin-only: move one participant to a specific table number for the CURRENT round.
+    - Does not write `history` (so it won't affect next round assignment logic)
+    - Best-effort updates event_state.table_counts for late-join seating
+    Returns dict with {from, to}.
+    """
+    participant_id = (participant_id or "").strip()
+    if not participant_id:
+        raise ValueError("Participant id is required")
+    table_no = (table_no or "").strip()
+    if not table_no:
+        raise ValueError("Table number is required")
+
+    participant_ref = _participants_ref().document(participant_id)
+    state_ref = _state_ref()
+    transaction = db.transaction()
+    return _admin_override_table_txn(
+        transaction,
+        participant_ref,
+        state_ref,
+        new_table_no=table_no,
+        updated_by=updated_by,
+    )
+
 def logout_user(id):
     query = _participants_ref().where(filter=FieldFilter("id", "==", id)).stream()
     results = [ans.to_dict() for ans in query]

@@ -9,6 +9,7 @@ from data.firebase_db import (
     admin_add_participant,
     get_event_state,
     set_event_state,
+    admin_override_participant_table,
 )
 
 
@@ -117,6 +118,61 @@ if timer_btn:
         st.rerun()
 
 st.divider()
+st.subheader("🪑 Assign Table (Override for current round)")
+st.caption(
+    "Move a participant to a specific table now. Table options are existing tables + one new table (max+1). "
+    "This does NOT affect next round assignment."
+)
+
+state_now = get_event_state()
+round_no = int(state_now.get("current_round") or 0)
+started_now = bool(state_now.get("started"))
+st.caption(f"Round={round_no} | Started={started_now}")
+
+if not participants:
+    st.info("No active participants yet.")
+else:
+    table_ints: list[int] = []
+    for p in participants:
+        if not p.table_number:
+            continue
+        try:
+            table_ints.append(int(str(p.table_number)))
+        except Exception:
+            continue
+
+    max_table = max(table_ints) if table_ints else 0
+    table_options = [str(i) for i in range(1, max_table + 2)]  # always includes +1
+    new_table = str(max_table + 1)
+
+    col_o1, col_o2, col_o3 = st.columns([0.56, 0.22, 0.22], vertical_alignment="center")
+    with col_o1:
+        target_user = st.selectbox(
+            "Participant / 参加者",
+            options=participants,
+            format_func=lambda p: f"{p.name}  (Table: {p.table_number or '-'})",
+        )
+    with col_o2:
+        target_table = st.selectbox(
+            "Table / テーブル",
+            options=table_options,
+            format_func=lambda t: f"{t} (new)" if str(t) == new_table else str(t),
+        )
+    with col_o3:
+        st.write("")
+        st.write("")
+        if st.button("Assign / 指定", type="primary", width="stretch"):
+            try:
+                res = admin_override_participant_table(target_user.id, str(target_table), updated_by="admin")
+                st.toast(
+                    f"Updated {target_user.name}: {res.get('from') or '-'} → {res.get('to')}",
+                    icon="✅",
+                )
+                time.sleep(0.5)
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed: {e}")
+
 st.subheader("🧍 Manual Check-in (No Device)")
 st.caption("Use this when a participant cannot access the web app.")
 
