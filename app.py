@@ -292,8 +292,7 @@ admin_pages = [admin_1, admin_2]
 cashier_pages = [cashier, cashier_manage]
 
 if st.session_state.role == "Select your role":
-    st.title("MeetupOps")
-    st.caption("Real-time operations for Auckland Japanese–English Exchange")
+    st.title("ようこそ！Welcome to Auckland Japanese~English Exchange Meetup!")
 
 page_dict = {}
 if st.session_state.role == "Participant":
