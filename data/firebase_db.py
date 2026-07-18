@@ -127,7 +127,7 @@ def get_event_state():
             "last_cleanup_date": None,
             "payment_codes_total": 0,
             "payment_codes_unused": 0,
-            # Optional payment gate. Disabled by default for the public portfolio demo.
+            # Optional participant payment gate, disabled by default.
             "payment_code_required": False,
         }
     data = doc.to_dict() or {}

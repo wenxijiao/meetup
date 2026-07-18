@@ -2,21 +2,19 @@
 
 MeetupOps is a real-time operations platform for multilingual community events. It coordinates participant check-in, one-time payment codes, balanced table assignment, event rounds, and table activities from one Streamlit application.
 
-**Live demo:** [meetup-ops.streamlit.app](https://meetup-ops.streamlit.app/)
+**Live application:** [meetup-ops.streamlit.app](https://meetup-ops.streamlit.app/)
 
-## Recruiter quick start
+## Demo walkthrough
 
-Open the live demo to land on the public **Recruiter Tour**. It explains the three user roles and runs the production table-assignment algorithm on fictional data, all on one page and without a login or database write.
+The deployed application follows the same role-based workflow used during an event. Start from the normal login screen and choose a role:
 
-For a deeper walkthrough, choose **Staff / Participant Login** in the sidebar:
+| Role | Access | What to review |
+| --- | --- | --- |
+| Admin | Password: `123456` | Round settings, table assignment, attendance controls, and live dashboards |
+| Cashier | Password: `123456` | Front-desk check-in, payment-code tools, and participant management |
+| Participant | Enter any name and choose a language | Live table status and synchronized group activities |
 
-| Role | Demo access |
-| --- | --- |
-| Admin | Password: `123456` |
-| Cashier | Password: `123456` |
-| Participant | Enter any name and choose a language; no payment code required |
-
-Suggested two-minute review: read the role overview, inspect the three simulated rounds, then optionally log in as Admin to see the live operations dashboard.
+Participant payment codes are currently disabled, so the participant workflow can be opened without coordinating with the Cashier view. Use **Log out** in the sidebar to switch roles.
 
 ## What it solves
 
@@ -31,7 +29,7 @@ Running a language-exchange event usually involves several disconnected tasks: f
 - Manual check-in and table overrides for front-desk staff
 - Synchronized table activities, including Undercover and Story Chain
 - English and Japanese interface copy
-- Automatic cleanup of expired demo-event data
+- Automatic cleanup of expired event data
 
 ## Technology
 
@@ -46,7 +44,7 @@ Firebase credentials and the cookie-signing secret are supplied through Streamli
 
 The application accepts either `FIREBASE_SERVICE_ACCOUNT_JSON` or Google Application Default Credentials, which makes the same code suitable for Streamlit Community Cloud and keyless Google Cloud deployments.
 
-The simple staff password documented above is intentionally limited to this portfolio demo. Production deployments should use unique strong credentials or an identity provider.
+The shared staff password documented above is used only for this publicly accessible project instance. A production deployment should use unique strong credentials or an identity provider.
 
 ## Local development
 

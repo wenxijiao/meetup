@@ -11,29 +11,6 @@ from data.data_structure import Participant
 
 tz = pytz.timezone("Pacific/Auckland")
 
-def _snapshot_tables(tables: List[List[Participant]]) -> List[List[dict]]:
-    return [
-        [{"id": p.id, "name": p.name, "language": p.language} for p in t]
-        for t in tables
-    ]
-
-def _repeat_pairs_in_tables(tables: List[List[Participant]]) -> int:
-    # Build met-before map from history
-    met_before: Dict[str, Set[str]] = {}
-    for t in tables:
-        for p in t:
-            met_before[p.id] = _met_before_ids(p)
-
-    repeat_pairs = 0
-    for t in tables:
-        ids = [p.id for p in t]
-        for i in range(len(ids)):
-            for j in range(i + 1, len(ids)):
-                a, b = ids[i], ids[j]
-                if b in met_before.get(a, set()) or a in met_before.get(b, set()):
-                    repeat_pairs += 1
-    return repeat_pairs
-
 def _has_english(p: Participant) -> bool:
     return "English" in str(p.language)
 
@@ -168,7 +145,6 @@ def _seed_tables_for_language(
         """
         if len(candidates) == 1:
             return candidates.pop()
-        best_idx = 0
         best_cost = 10**9
         tie_indices = []
         for idx, cand in enumerate(candidates):
@@ -214,7 +190,6 @@ def _fill_tables_min_repeat(
     tables: List[List[Participant]],
     remaining: List[Participant],
     max_per_table: int,
-    debug: Optional[dict] = None,
 ) -> None:
     """
     Fill tables up to max_per_table, minimizing repeated pairings.
@@ -233,7 +208,6 @@ def _fill_tables_min_repeat(
         return sum(1 for m in table if m.id in met) + 3 * sum(1 for m in table if m.id in last)
 
     for p in remaining:
-        sizes_before = [len(t) for t in tables]
         best_i: Optional[int] = None
         best_cost = 10**9
         best_size = 10**9
@@ -251,16 +225,6 @@ def _fill_tables_min_repeat(
             # put into the smallest table.
             best_i = min(range(len(tables)), key=lambda i: len(tables[i]))
         tables[best_i].append(p)
-        if debug is not None:
-            debug.setdefault("placements", []).append(
-                {
-                    "participant": {"id": p.id, "name": p.name, "language": p.language},
-                    "chosen_table_index": best_i,
-                    "incremental_repeat_cost": best_cost,
-                    "table_sizes_before": sizes_before,
-                    "table_sizes_after": [len(t) for t in tables],
-                }
-            )
 
 def assign_tables(
     participants: List[Participant],
@@ -302,16 +266,10 @@ def assign_tables(
     random.shuffle(pool)
 
     # 1) Seed for language mix (best effort)
-    debug: dict = {"phases": []}
-
-    debug["phases"].append({"name": "after_choose_table_count", "tables": _snapshot_tables(tables)})
-
     remaining = _seed_tables_for_language(tables, pool)
-    debug["phases"].append({"name": "after_language_seeding", "tables": _snapshot_tables(tables)})
 
     # 2) Fill remaining minimizing repeats (best effort)
-    _fill_tables_min_repeat(tables, remaining, max_per_table=max_per_table, debug=debug)
-    debug["phases"].append({"name": "after_fill_min_repeat", "tables": _snapshot_tables(tables)})
+    _fill_tables_min_repeat(tables, remaining, max_per_table=max_per_table)
 
     # 3) Validate min_per_table best effort by moving from larger tables to smaller ones
     # (rarely needed if table count chosen correctly)
@@ -368,62 +326,7 @@ def assign_tables(
             p.history.append(entry)
             updated.append(p)
 
-    # Stash last debug snapshot in module-level for optional inspection tools/pages.
-    # This is intentionally best-effort and should not be relied upon in production logic.
-    global _LAST_ASSIGN_DEBUG
-    _LAST_ASSIGN_DEBUG = debug
-
     return updated, num_tables
-
-def assign_tables_debug(
-    participants: List[Participant],
-    max_per_table: int,
-    min_per_table: int,
-    round_number: Optional[int] = None,
-) -> Tuple[List[Participant], int, dict]:
-    """
-    Same as `assign_tables`, but returns a `debug` dict you can use to visualize the process.
-    This does NOT touch Firestore; it only mutates the provided Participant objects in memory.
-    """
-    debug: dict = {}
-    total_count = len(participants)
-    debug["inputs"] = {
-        "total": total_count,
-        "max_per_table": max_per_table,
-        "min_per_table": min_per_table,
-        "en_count": sum(1 for p in participants if _has_english(p)),
-        "jp_count": sum(1 for p in participants if _has_japanese(p)),
-    }
-
-    updated, num_tables = assign_tables(
-        participants=participants,
-        target_per_table=max_per_table,
-        min_per_table=min_per_table,
-        round_number=round_number,
-    )
-
-    # Rebuild tables for summary/snapshots
-    tables: List[List[Participant]] = [[] for _ in range(num_tables)]
-    for p in updated:
-        if p.table_number is None:
-            continue
-        idx = int(p.table_number) - 1
-        if 0 <= idx < num_tables:
-            tables[idx].append(p)
-
-    debug["result"] = {
-        "chosen_tables": num_tables,
-        "table_sizes": [len(t) for t in tables],
-        "tables_snapshot": _snapshot_tables(tables),
-        "tables_mixed_count": sum(
-            1
-            for t in tables
-            if any(_has_english(x) for x in t) and any(_has_japanese(x) for x in t)
-        ),
-        "repeat_pairs_in_round": _repeat_pairs_in_tables(tables),
-    }
-
-    return updated, num_tables, debug
 
 def decide_table_count(total_count: int, target_per_table: int, min_per_table: int) -> int:
     """

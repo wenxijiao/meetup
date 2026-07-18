@@ -17,11 +17,11 @@ import data  # noqa: E402, F401
 
 from data.firebase_db import get_my_status, checkin_with_optional_payment_code, get_event_state  # noqa: E402
 
-# This is an intentionally public portfolio-demo credential, documented in README.
-# Real secrets (Firebase and cookie signing) remain in Streamlit Secrets.
-DEMO_STAFF_PASSWORD = "123456"
-ADMIN_PASSWORD = DEMO_STAFF_PASSWORD
-CASHIER_PASSWORD = DEMO_STAFF_PASSWORD
+# Shared staff credential for this hosted instance. Firebase and cookie-signing
+# credentials remain private in Streamlit Secrets.
+STAFF_PASSWORD = "123456"
+ADMIN_PASSWORD = STAFF_PASSWORD
+CASHIER_PASSWORD = STAFF_PASSWORD
 COOKIE_SIGNING_SECRET = get_auth_secret("cookie_signing_secret")
 
 cookie_manager = stx.CookieManager(key="meetup_manager")
@@ -143,7 +143,7 @@ def login():
                 "言語 / Language", 
                 ["English", "Japanese"]
             )
-            # Payment code requirement controlled by Admin (default: disabled for the demo)
+            # Payment code requirement is controlled by Admin and disabled by default.
             try:
                 state = get_event_state()
             except Exception:
@@ -250,12 +250,6 @@ role = st.session_state.role
 
 logout_page = st.Page(logout, title="ログアウト / Log out", icon=":material/logout:")
 settings = st.Page("settings.py", title="設定 / Settings", icon=":material/settings:")
-showcase = st.Page(
-    "showcase.py",
-    title="Recruiter Tour",
-    icon=":material/tour:",
-    default=(role == "Select your role"),
-)
 
 participant = st.Page(
     "participant/participant_1.py",
@@ -268,10 +262,6 @@ participant_activity = st.Page(
     title="活動 / Activities",
     icon=":material/forum:",
 )
-# participant_test_page = st.Page(
-#     "participant/test.py", 
-#     title="テスト / Test", 
-#     icon=":material/bug_report:")
 
 admin_1 = st.Page(
     "admin/admin_1.py",
@@ -283,12 +273,6 @@ admin_2 = st.Page(
     "admin/admin_2.py", 
     title="Admin 2", 
     icon=":material/security:")
-admin_simulate = st.Page(
-    "admin/simulate.py",
-    title="Simulate / Debug",
-    icon=":material/biotech:",
-)
-
 cashier = st.Page(
     "admin/cashier.py",
     title="Login Code / QR Code",
@@ -300,16 +284,11 @@ cashier_manage = st.Page(
     title="Front Desk Tools",
     icon=":material/group:",
 )
-# admin_test_page = st.Page(
-#     "admin/test.py", 
-#     title="Test Page", 
-#     icon=":material/bug_report:")
 
 
 account_pages = [logout_page, settings]
 participant_pages = [participant, participant_activity]
-admin_pages = [admin_1, admin_2, admin_simulate]
-cashier_pages = [cashier]
+admin_pages = [admin_1, admin_2]
 cashier_pages = [cashier, cashier_manage]
 
 if st.session_state.role == "Select your role":
@@ -328,10 +307,7 @@ if len(page_dict) > 0:
     pg = st.navigation({"Account": account_pages} | page_dict)
 else:
     pg = st.navigation(
-        [
-            showcase,
-            st.Page(login, title="Staff / Participant Login", icon=":material/login:"),
-        ]
+        [st.Page(login, title="ログイン / Log in", icon=":material/login:", default=True)]
     )
 
 pg.run()
