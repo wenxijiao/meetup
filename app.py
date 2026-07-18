@@ -110,213 +110,111 @@ if (
         # If not found / query failed, stay on the login page.
         pass
 
-ROLES = ["Select your role", "Participant", "Cashier", "Admin"]
 COOKIE_TTL_DAYS = 2  # Covers Wed->Fri cadence without lasting too long.
 
-ROLE_LABELS = {
-    "Select your role": "役割を選択 / Select your role",
-    "Participant": "参加者 / Participant",
-    "Cashier": "受付 / Cashier",
-    "Admin": "管理者 / Admin",
-}
+ACCENT_RED = "#e5484d"  # Single accent color used across the login screen.
 
 
 def render_welcome_header():
-    """Render the event welcome banner shown above the normal login flow."""
+    """Render the event welcome hero shown above the login flow."""
     st.markdown(
-        """
+        f"""
         <style>
-        .meetup-welcome {
+        /* Keep the login screen narrow and centered even with layout="wide". */
+        div[data-testid="stMainBlockContainer"],
+        section.main > div.block-container {{
+            max-width: 46rem;
+            margin: 0 auto;
+            padding-top: 2.2rem;
+        }}
+        .mo-hero {{
             position: relative;
-            isolation: isolate;
             overflow: hidden;
-            margin: 0.25rem 0 1.8rem;
-            padding: clamp(1.8rem, 4vw, 3.4rem);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            border-radius: 28px;
-            background:
-                radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.15), transparent 24%),
-                radial-gradient(circle at 88% 92%, rgba(251, 113, 133, 0.30), transparent 30%),
-                linear-gradient(135deg, #172554 0%, #312e81 48%, #9f1239 100%);
-            color: #ffffff;
-            box-shadow: 0 22px 55px rgba(15, 23, 42, 0.28);
-        }
-        .meetup-welcome::before,
-        .meetup-welcome::after {
-            content: "";
+            margin: 0 0 1.4rem;
+            padding: clamp(1.9rem, 5vw, 3rem) clamp(1.4rem, 4vw, 2.6rem);
+            border: 1px solid rgba(128, 128, 128, 0.25);
+            border-radius: 20px;
+            background: var(--secondary-background-color, rgba(128, 128, 128, 0.07));
+        }}
+        .mo-hero > * {{
+            margin: 0;
+            padding: 0;
+        }}
+        .mo-watermark {{
             position: absolute;
-            z-index: -1;
-            border: 1px solid rgba(255, 255, 255, 0.13);
-            border-radius: 999px;
-        }
-        .meetup-welcome::before {
-            width: 320px;
-            height: 320px;
-            top: -210px;
-            right: -55px;
-        }
-        .meetup-welcome::after {
-            width: 190px;
-            height: 190px;
-            bottom: -135px;
-            left: 38%;
-        }
-        .welcome-layout {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) 210px;
-            gap: clamp(1.4rem, 4vw, 3.6rem);
-            align-items: center;
-        }
-        .welcome-kicker {
-            display: inline-flex;
+            right: -0.04em;
+            bottom: -0.3em;
+            font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+            font-size: clamp(10rem, 30vw, 15rem);
+            font-weight: 700;
+            line-height: 1;
+            opacity: 0.05;
+            pointer-events: none;
+            user-select: none;
+        }}
+        .mo-kicker {{
+            display: flex;
             align-items: center;
             gap: 0.55rem;
-            margin-bottom: 1.15rem;
-            font-size: 0.76rem;
-            font-weight: 750;
-            letter-spacing: 0.16em;
+            margin-bottom: 1.4rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.22em;
             text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.76);
-        }
-        .welcome-kicker::before {
-            content: "";
-            width: 8px;
-            height: 8px;
+        }}
+        .mo-kicker .mo-dot {{
+            width: 9px;
+            height: 9px;
             border-radius: 50%;
-            background: #fda4af;
-            box-shadow: 0 0 0 5px rgba(253, 164, 175, 0.16);
-        }
-        .welcome-japanese {
-            margin: 0;
-            font-size: clamp(3.1rem, 7vw, 5.7rem);
-            font-weight: 850;
-            letter-spacing: -0.055em;
-            line-height: 0.95;
-            text-shadow: 0 3px 18px rgba(15, 23, 42, 0.22);
-        }
-        .welcome-english {
-            margin: 0.65rem 0 0;
-            font-size: clamp(1.05rem, 2.2vw, 1.55rem);
-            font-weight: 520;
-            letter-spacing: 0.015em;
-            color: rgba(255, 255, 255, 0.88);
-        }
-        .exchange-name {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: baseline;
-            gap: 0.35rem 0.7rem;
-            margin-top: 1.35rem;
-            font-size: clamp(1.05rem, 2vw, 1.35rem);
-            font-weight: 760;
-        }
-        .exchange-name .exchange-x {
-            color: #fda4af;
-            font-size: 1.15em;
-        }
-        .exchange-name .exchange-meetup {
-            width: 100%;
-            font-size: 0.78rem;
-            font-weight: 650;
-            letter-spacing: 0.17em;
-            text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.62);
-        }
-        .welcome-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 1.45rem;
-        }
-        .welcome-tag {
-            padding: 0.36rem 0.72rem;
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.08);
-            color: rgba(255, 255, 255, 0.80);
-            font-size: 0.73rem;
-            font-weight: 600;
-            backdrop-filter: blur(8px);
-        }
-        .language-mark {
-            position: relative;
-            width: 190px;
-            height: 190px;
-            margin: auto;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            align-items: center;
-            overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.32);
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.10);
-            box-shadow:
-                inset 0 0 0 12px rgba(255, 255, 255, 0.035),
-                0 18px 42px rgba(15, 23, 42, 0.25);
-            backdrop-filter: blur(12px);
-        }
-        .language-mark::after {
-            content: "";
-            position: absolute;
-            left: 50%;
-            top: 22%;
-            bottom: 22%;
-            width: 1px;
-            background: rgba(255, 255, 255, 0.24);
-        }
-        .language-mark span {
-            text-align: center;
-            font-size: 3.35rem;
-            font-weight: 800;
-            line-height: 1;
-            text-shadow: 0 4px 16px rgba(15, 23, 42, 0.25);
-        }
-        .language-mark .mark-jp {
+            background: {ACCENT_RED};
+            flex: none;
+        }}
+        .mo-kicker .mo-kicker-text {{
+            opacity: 0.62;
+        }}
+        .mo-title {{
             font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
-            color: #fecdd3;
-        }
-        @media (max-width: 700px) {
-            .meetup-welcome {
-                padding: 1.7rem 1.35rem;
-                border-radius: 22px;
-            }
-            .welcome-layout {
-                grid-template-columns: 1fr;
-            }
-            .language-mark {
-                width: 132px;
-                height: 132px;
-                margin: 0;
-            }
-            .language-mark span {
-                font-size: 2.35rem;
-            }
-        }
+            font-size: clamp(2.7rem, 8vw, 4.2rem);
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            line-height: 1.08;
+        }}
+        .mo-title .mo-period {{
+            color: {ACCENT_RED};
+        }}
+        .mo-sub {{
+            margin-top: 1.05rem;
+            font-size: clamp(1.1rem, 3vw, 1.45rem);
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }}
+        .mo-sub .mo-x {{
+            color: {ACCENT_RED};
+            padding: 0 0.12em;
+        }}
+        .mo-desc {{
+            margin-top: 0.9rem;
+            max-width: 30rem;
+            font-size: 0.95rem;
+            line-height: 1.7;
+            opacity: 0.68;
+        }}
+        /* Larger tap targets + calmer look for the login tabs. */
+        button[data-testid="stTab"] p {{
+            font-size: 0.98rem;
+            font-weight: 600;
+        }}
         </style>
 
-        <section class="meetup-welcome" aria-label="Auckland Japanese English Exchange">
-            <div class="welcome-layout">
-                <div>
-                    <div class="welcome-kicker">Auckland · New Zealand</div>
-                    <h1 class="welcome-japanese">ようこそ！</h1>
-                    <p class="welcome-english">Welcome — come meet, talk and connect.</p>
-                    <div class="exchange-name">
-                        <span>Japanese</span>
-                        <span class="exchange-x">×</span>
-                        <span>English</span>
-                        <span class="exchange-meetup">Exchange Meetup</span>
-                    </div>
-                    <div class="welcome-tags">
-                        <span class="welcome-tag">Conversation</span>
-                        <span class="welcome-tag">Community</span>
-                        <span class="welcome-tag">日本語 &amp; English</span>
-                    </div>
-                </div>
-                <div class="language-mark" aria-hidden="true">
-                    <span>A</span>
-                    <span class="mark-jp">あ</span>
-                </div>
+        <section class="mo-hero" aria-label="Auckland Japanese English Meetup">
+            <div class="mo-kicker">
+                <span class="mo-dot"></span>
+                <span class="mo-kicker-text">Auckland · Language Exchange</span>
             </div>
+            <div class="mo-title" role="heading" aria-level="1">ようこそ<span class="mo-period">。</span></div>
+            <p class="mo-sub">Japanese <span class="mo-x">×</span> English Meetup</p>
+            <p class="mo-desc">気軽に話して、つながりましょう。<br>Come meet, talk and connect.</p>
+            <div class="mo-watermark" aria-hidden="true">あ</div>
         </section>
         """,
         unsafe_allow_html=True,
@@ -327,117 +225,110 @@ def render_welcome_header():
 # Cashier/Admin devices typically don't have participant uuid cookie, so do this first.
 _maybe_restore_staff_from_cookie()
 
+def _participant_checkin(name: str, language: str, payment_code: str | None):
+    """Check the participant in (payment code is validated server-side when required)."""
+    try:
+        participant_id, final_name = checkin_with_optional_payment_code(
+            current_id, name, language, payment_code
+        )
+
+        # Refresh cookie expiry to avoid unexpected expiry during the event.
+        cookie_manager.set(
+            "uuid",
+            f"{today_str}|{participant_id}",
+            expires_at=datetime.datetime.now() + datetime.timedelta(days=COOKIE_TTL_DAYS),
+        )
+
+        st.session_state.role = "Participant"
+        st.session_state.name = final_name
+        st.session_state.skip_auto_restore = False
+        st.session_state.u_id = participant_id
+
+        # Give the browser a moment to persist cookies on some mobile clients.
+        time.sleep(0.2)
+        st.rerun()
+    except ValueError as e:
+        msg = str(e) or "Login failed"
+        if "Payment code is required" in msg:
+            st.error("Payment code is required. / 支払いコードが必要です。")
+        elif "Invalid code" in msg:
+            st.error("Invalid code. Please ask the front desk for a valid code. / 無効なコードです。受付で確認してください。")
+        elif "Code already used" in msg:
+            st.error("Code already used. Please ask the front desk for a new code. / このコードは使用済みです。受付で新しいコードをもらってください。")
+        else:
+            st.error(f"Login failed: {msg} / ログイン失敗: {msg}")
+    except Exception:
+        st.error("Login failed. Please try again. / ログインに失敗しました。もう一度お試しください。")
+
+
+def _staff_login(role: str, password: str):
+    """Shared Cashier/Admin login: verify password, set signed same-day cookie."""
+    expected = CASHIER_PASSWORD if role == "Cashier" else ADMIN_PASSWORD
+    if not expected or not COOKIE_SIGNING_SECRET:
+        st.error("Staff login is not configured. / スタッフログインが設定されていません。")
+    elif not hmac.compare_digest(password, expected):
+        st.error("パスワードが違います。 / Incorrect password, try again.")
+    else:
+        # Save staff cookie for same-day quick access
+        cookie_manager.set(
+            "staff",
+            f"{today_str}|{role}|{_staff_sig(today_str, role, COOKIE_SIGNING_SECRET)}",
+            expires_at=datetime.datetime.now() + datetime.timedelta(days=COOKIE_TTL_DAYS),
+        )
+        st.session_state.role = role
+        st.session_state.name = role
+        st.session_state.skip_auto_restore = False
+        st.rerun()
+
+
 def login():
-    st.header("ログイン / Log in")
-    role = st.selectbox(
-        "役割を選択 / Choose your role",
-        ROLES,
-        format_func=lambda r: ROLE_LABELS.get(r, str(r)),
-    )
+    tab_join, tab_staff = st.tabs(["チェックイン / Check in", "スタッフ / Staff"])
 
-    st.divider()
+    with tab_join:
+        # Payment code requirement is controlled by Admin and disabled by default.
+        try:
+            state = get_event_state()
+        except Exception:
+            state = {}
+        payment_required = bool(state.get("payment_code_required", False))
 
-    if role == "Select your role":
-        pass
-    elif role == "Participant":
         with st.form("checkin_form"):
-            name = st.text_input("君の名前 / Your Name")
-            language = st.selectbox(
-                "言語 / Language", 
-                ["English", "Japanese"]
+            name = st.text_input("お名前 / Your name", placeholder="Alex / ゆき")
+            language = st.radio(
+                "言語 / Language",
+                ["English", "Japanese"],
+                horizontal=True,
+                format_func=lambda v: "🇬🇧 English" if v == "English" else "🇯🇵 日本語",
             )
-            # Payment code requirement is controlled by Admin and disabled by default.
-            try:
-                state = get_event_state()
-            except Exception:
-                state = {}
-            payment_required = bool(state.get("payment_code_required", False))
             payment_code = None
             if payment_required:
                 payment_code = st.text_input(
                     "支払いコード / Payment code",
-                    help="Front desk will give you a one-time code after payment.",
+                    help="受付でお支払い後にコードをお渡しします。 / The front desk gives you a one-time code after payment.",
                 )
-            submitted = st.form_submit_button("✅ Log in")
-            
-            if submitted:
-                if name and language:
-                    # Use one-time payment code unless you are already paid / already checked-in today.
-                    try:
-                        if current_id:
-                            participant_id, final_name = checkin_with_optional_payment_code(
-                                current_id, name, language, payment_code
-                            )
-                        else:
-                            participant_id, final_name = checkin_with_optional_payment_code(
-                                None, name, language, payment_code
-                            )
+            submitted = st.form_submit_button(
+                "チェックイン / Check in", type="primary", width="stretch"
+            )
 
-                        # Refresh cookie expiry to avoid unexpected expiry during the event.
-                        cookie_manager.set(
-                            "uuid",
-                            f"{today_str}|{participant_id}",
-                            expires_at=datetime.datetime.now() + datetime.timedelta(days=COOKIE_TTL_DAYS),
-                        )
-
-                        st.session_state.role = role
-                        st.session_state.name = final_name
-                        st.session_state.skip_auto_restore = False
-                        st.session_state.u_id = participant_id
-
-                        # Give the browser a moment to persist cookies on some mobile clients.
-                        time.sleep(0.2)
-                        st.rerun()
-                    except ValueError as e:
-                        msg = str(e) or "Login failed"
-                        if "Payment code is required" in msg:
-                            st.error("Payment code is required. / 支払いコードが必要です。")
-                        elif "Invalid code" in msg:
-                            st.error("Invalid code. Please ask the front desk for a valid code. / 無効なコードです。受付で確認してください。")
-                        elif "Code already used" in msg:
-                            st.error("Code already used. Please ask the front desk for a new code. / このコードは使用済みです。受付で新しいコードをもらってください。")
-                        else:
-                            st.error(f"Login failed: {msg} / ログイン失敗: {msg}")
-                    except Exception:
-                        st.error("Login failed. Please try again. / ログインに失敗しました。もう一度お試しください。")
-                else:
-                    st.error("名前と言語を選択してください。 / Please enter your name and select a language.")
-    elif role == "Cashier":
-        password = st.text_input("パスワード / Password", type="password")
-        if st.button("ログイン / Log in"):
-            if not CASHIER_PASSWORD or not COOKIE_SIGNING_SECRET:
-                st.error("Staff login is not configured. / スタッフログインが設定されていません。")
-            elif not hmac.compare_digest(password, CASHIER_PASSWORD):
-                st.error("パスワードが違います。 / Incorrect password, try again.")
+        if submitted:
+            if name.strip():
+                _participant_checkin(name, language, payment_code)
             else:
-                # Save staff cookie for same-day quick access
-                cookie_manager.set(
-                    "staff",
-                    f"{today_str}|Cashier|{_staff_sig(today_str, 'Cashier', COOKIE_SIGNING_SECRET)}",
-                    expires_at=datetime.datetime.now() + datetime.timedelta(days=COOKIE_TTL_DAYS),
-                )
-                st.session_state.role = role
-                st.session_state.name = "Cashier"
-                st.session_state.skip_auto_restore = False
-                st.rerun()
-    else:
-        password = st.text_input("パスワード / Password", type="password")
-        if st.button("ログイン / Log in"):
-            if not ADMIN_PASSWORD or not COOKIE_SIGNING_SECRET:
-                st.error("Staff login is not configured. / スタッフログインが設定されていません。")
-            elif not hmac.compare_digest(password, ADMIN_PASSWORD):
-                st.error("パスワードが違います。 / Incorrect password, try again.")
-            else:
-                # Save staff cookie for same-day quick access
-                cookie_manager.set(
-                    "staff",
-                    f"{today_str}|Admin|{_staff_sig(today_str, 'Admin', COOKIE_SIGNING_SECRET)}",
-                    expires_at=datetime.datetime.now() + datetime.timedelta(days=COOKIE_TTL_DAYS),
-                )
-                st.session_state.role = role
-                st.session_state.name = "Admin"
-                st.session_state.skip_auto_restore = False
-                st.rerun()
+                st.error("名前を入力してください。 / Please enter your name.")
+
+    with tab_staff:
+        with st.form("staff_login_form"):
+            staff_role = st.radio(
+                "役割 / Role",
+                ["Cashier", "Admin"],
+                horizontal=True,
+                format_func=lambda r: "受付 / Cashier" if r == "Cashier" else "管理者 / Admin",
+            )
+            password = st.text_input("パスワード / Password", type="password")
+            staff_submitted = st.form_submit_button("ログイン / Log in", width="stretch")
+
+        if staff_submitted:
+            _staff_login(staff_role, password)
 
 
 def logout():
@@ -457,7 +348,7 @@ settings = st.Page("settings.py", title="設定 / Settings", icon=":material/set
 participant = st.Page(
     "participant/participant_1.py",
     title="参加者 / Participant",
-    icon=":material/healing:",
+    icon=":material/table_restaurant:",
     default=(role == "Participant"),
 )
 participant_activity = st.Page(
