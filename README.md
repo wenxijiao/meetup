@@ -2,6 +2,8 @@
 
 MeetupOps is a real-time operations platform for multilingual community events. It coordinates participant check-in, one-time payment codes, balanced table assignment, event rounds, and table activities from one Streamlit application.
 
+**Live demo:** [meetup-ops.streamlit.app](https://meetup-ops.streamlit.app/)
+
 ## What it solves
 
 Running a language-exchange event usually involves several disconnected tasks: front-desk check-in, payment confirmation, table allocation, round changes, and participant activities. MeetupOps gives organizers, cashiers, and participants role-specific workflows backed by the same live event state.

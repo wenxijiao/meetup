@@ -9,11 +9,13 @@ import hmac
 import hashlib
 from app_config import get_auth_secret
 
+st.set_page_config(page_title="MeetupOps", page_icon="🤝", layout="wide")
+
 # Ensure local package import works reliably under Streamlit reloader
 sys.path.append(str(Path(__file__).parent))
-import data  # noqa: F401
+import data  # noqa: E402, F401
 
-from data.firebase_db import get_my_status, checkin_with_optional_payment_code, get_event_state
+from data.firebase_db import get_my_status, checkin_with_optional_payment_code, get_event_state  # noqa: E402
 
 ADMIN_PASSWORD = get_auth_secret("admin_password")
 CASHIER_PASSWORD = get_auth_secret("cashier_password")
@@ -304,7 +306,8 @@ cashier_pages = [cashier]
 cashier_pages = [cashier, cashier_manage]
 
 if st.session_state.role == "Select your role":
-    st.title("ようこそ！Welcome to Auckland Japanese~English Exchange Meetup!")
+    st.title("MeetupOps")
+    st.caption("Real-time operations for Auckland Japanese–English Exchange")
 
 page_dict = {}
 if st.session_state.role == "Participant":
@@ -317,6 +320,8 @@ elif st.session_state.role == "Admin":
 if len(page_dict) > 0:
     pg = st.navigation({"Account": account_pages} | page_dict)
 else:
-    pg = st.navigation([st.Page(login, title="Log in"), ui_preview, showcase])
+    pg = st.navigation(
+        [st.Page(login, title="MeetupOps", icon=":material/login:"), ui_preview, showcase]
+    )
 
 pg.run()
