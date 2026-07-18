@@ -364,9 +364,14 @@ admin_1 = st.Page(
     default=(role == "Admin"),
 )
 admin_2 = st.Page(
-    "admin/admin_2.py", 
-    title="Admin 2", 
+    "admin/admin_2.py",
+    title="Admin 2",
     icon=":material/security:")
+admin_simulate = st.Page(
+    "admin/simulate.py",
+    title="Simulator / テスト",
+    icon=":material/science:",
+)
 cashier = st.Page(
     "admin/cashier.py",
     title="Login Code / QR Code",
@@ -382,7 +387,7 @@ cashier_manage = st.Page(
 
 account_pages = [logout_page, settings]
 participant_pages = [participant, participant_activity]
-admin_pages = [admin_1, admin_2]
+admin_pages = [admin_1, admin_2, admin_simulate]
 cashier_pages = [cashier, cashier_manage]
 
 if st.session_state.role == "Select your role":
