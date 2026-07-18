@@ -1,11 +1,12 @@
-from pathlib import Path
 from datetime import datetime, timedelta
 import pytz
 from data.data_structure import Participant
 from data.logic import assign_tables
+from app_config import get_firebase_service_account
 import secrets
 import string
 from google.api_core.exceptions import AlreadyExists
+from google.auth.exceptions import DefaultCredentialsError
 from activities.registry import (
     create_activity_state,
     choose_random_activity_id,
@@ -18,11 +19,20 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from google.cloud.firestore import FieldFilter
 
-SERVICE_ACCOUNT_PATH = Path(__file__).parent / "meetup-table-assign-firebase-adminsdk-fbsvc-fda1739a4a.json"
 if not firebase_admin._apps:
-    cred = credentials.Certificate(str(SERVICE_ACCOUNT_PATH))
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
+    service_account = get_firebase_service_account()
+    if service_account:
+        firebase_admin.initialize_app(credentials.Certificate(service_account))
+    else:
+        # Cloud Run and local `gcloud auth application-default login` use ADC.
+        firebase_admin.initialize_app()
+try:
+    db = firestore.client()
+except DefaultCredentialsError as exc:
+    raise RuntimeError(
+        "Firebase credentials are not configured. Add "
+        "FIREBASE_SERVICE_ACCOUNT_JSON to Streamlit Secrets or configure ADC."
+    ) from exc
 
 ROOT_COLLECTION = "meetups"
 tz = pytz.timezone("Pacific/Auckland")
@@ -1019,4 +1029,3 @@ def get_test_participants(tag: str | None = None):
     if tag:
         docs = [d for d in docs if d.get("test_tag") == tag]
     return docs
-    

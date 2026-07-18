@@ -7,12 +7,17 @@ from pathlib import Path
 import sys
 import hmac
 import hashlib
+from app_config import get_auth_secret
 
 # Ensure local package import works reliably under Streamlit reloader
 sys.path.append(str(Path(__file__).parent))
 import data  # noqa: F401
 
 from data.firebase_db import get_my_status, checkin_with_optional_payment_code, get_event_state
+
+ADMIN_PASSWORD = get_auth_secret("admin_password")
+CASHIER_PASSWORD = get_auth_secret("cashier_password")
+COOKIE_SIGNING_SECRET = get_auth_secret("cookie_signing_secret")
 
 cookie_manager = stx.CookieManager(key="meetup_manager")
 cookie_id = cookie_manager.get(cookie="uuid")
@@ -34,13 +39,15 @@ tz = pytz.timezone("Pacific/Auckland")
 today_str = str(datetime.datetime.now(tz=tz).date())
 
 # Staff cookie format: "{YYYY-MM-DD}|{role}|{sig}"
-def _staff_sig(date_part: str, role: str, secret: str) -> str:
+def _staff_sig(date_part: str, role: str, secret: str | None) -> str:
     msg = f"{date_part}|{role}".encode("utf-8")
     key = (secret or "").encode("utf-8")
     return hmac.new(key, msg, hashlib.sha256).hexdigest()
 
 def _maybe_restore_staff_from_cookie():
     if not staff_cookie:
+        return False
+    if not COOKIE_SIGNING_SECRET:
         return False
     if st.session_state.role != "Select your role":
         return False
@@ -55,8 +62,7 @@ def _maybe_restore_staff_from_cookie():
             return False
         if role_part not in ("Admin", "Cashier"):
             return False
-        secret = ADMIN_PASSWORD if role_part == "Admin" else CASHIER_PASSWORD
-        if not hmac.compare_digest(sig, _staff_sig(date_part, role_part, secret)):
+        if not hmac.compare_digest(sig, _staff_sig(date_part, role_part, COOKIE_SIGNING_SECRET)):
             return False
         st.session_state.role = role_part
         st.session_state.name = role_part
@@ -100,8 +106,6 @@ if (
         pass
 
 ROLES = ["Select your role", "Participant", "Cashier", "Admin"]
-ADMIN_PASSWORD = "123456789"
-CASHIER_PASSWORD = "987654321"
 COOKIE_TTL_DAYS = 2  # Covers Wed->Fri cadence without lasting too long.
 
 ROLE_LABELS = {
@@ -193,13 +197,15 @@ def login():
     elif role == "Cashier":
         password = st.text_input("パスワード / Password", type="password")
         if st.button("ログイン / Log in"):
-            if password != CASHIER_PASSWORD:
+            if not CASHIER_PASSWORD or not COOKIE_SIGNING_SECRET:
+                st.error("Staff login is not configured. / スタッフログインが設定されていません。")
+            elif not hmac.compare_digest(password, CASHIER_PASSWORD):
                 st.error("パスワードが違います。 / Incorrect password, try again.")
             else:
                 # Save staff cookie for same-day quick access
                 cookie_manager.set(
                     "staff",
-                    f"{today_str}|Cashier|{_staff_sig(today_str, 'Cashier', CASHIER_PASSWORD)}",
+                    f"{today_str}|Cashier|{_staff_sig(today_str, 'Cashier', COOKIE_SIGNING_SECRET)}",
                     expires_at=datetime.datetime.now() + datetime.timedelta(days=COOKIE_TTL_DAYS),
                 )
                 st.session_state.role = role
@@ -209,13 +215,15 @@ def login():
     else:
         password = st.text_input("パスワード / Password", type="password")
         if st.button("ログイン / Log in"):
-            if password != ADMIN_PASSWORD:
+            if not ADMIN_PASSWORD or not COOKIE_SIGNING_SECRET:
+                st.error("Staff login is not configured. / スタッフログインが設定されていません。")
+            elif not hmac.compare_digest(password, ADMIN_PASSWORD):
                 st.error("パスワードが違います。 / Incorrect password, try again.")
             else:
                 # Save staff cookie for same-day quick access
                 cookie_manager.set(
                     "staff",
-                    f"{today_str}|Admin|{_staff_sig(today_str, 'Admin', ADMIN_PASSWORD)}",
+                    f"{today_str}|Admin|{_staff_sig(today_str, 'Admin', COOKIE_SIGNING_SECRET)}",
                     expires_at=datetime.datetime.now() + datetime.timedelta(days=COOKIE_TTL_DAYS),
                 )
                 st.session_state.role = role

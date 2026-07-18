@@ -1,0 +1,19 @@
+# Local secrets and credentials
+.streamlit/secrets.toml
+.env
+.env.*
+!.env.example
+*firebase-adminsdk*.json
+*service-account*.json
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Local editor and OS files
+.DS_Store

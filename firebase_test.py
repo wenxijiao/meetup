@@ -1,14 +1,6 @@
-from pathlib import Path
-import firebase_admin
-from firebase_admin import credentials, firestore
 from google.cloud.firestore import FieldFilter
 from data.data_structure import Participant
-
-SERVICE_ACCOUNT_PATH = Path(__file__).parent / "data/meetup-table-assign-firebase-adminsdk-fbsvc-fda1739a4a.json"
-if not firebase_admin._apps:
-    cred = credentials.Certificate(str(SERVICE_ACCOUNT_PATH))
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
+from data.firebase_db import db
 
 def add_participant(name, language):
     user = Participant(name=name, language=language)
@@ -33,4 +25,3 @@ if __name__ == "__main__":
 
     print(get_participant(id2))
     print(list_all_participants())
-
