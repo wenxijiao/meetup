@@ -17,8 +17,11 @@ import data  # noqa: E402, F401
 
 from data.firebase_db import get_my_status, checkin_with_optional_payment_code, get_event_state  # noqa: E402
 
-ADMIN_PASSWORD = get_auth_secret("admin_password")
-CASHIER_PASSWORD = get_auth_secret("cashier_password")
+# This is an intentionally public portfolio-demo credential, documented in README.
+# Real secrets (Firebase and cookie signing) remain in Streamlit Secrets.
+DEMO_STAFF_PASSWORD = "123456"
+ADMIN_PASSWORD = DEMO_STAFF_PASSWORD
+CASHIER_PASSWORD = DEMO_STAFF_PASSWORD
 COOKIE_SIGNING_SECRET = get_auth_secret("cookie_signing_secret")
 
 cookie_manager = stx.CookieManager(key="meetup_manager")
@@ -140,12 +143,12 @@ def login():
                 "言語 / Language", 
                 ["English", "Japanese"]
             )
-            # Payment code requirement controlled by Admin (default: required)
+            # Payment code requirement controlled by Admin (default: disabled for the demo)
             try:
                 state = get_event_state()
             except Exception:
                 state = {}
-            payment_required = bool(state.get("payment_code_required", True))
+            payment_required = bool(state.get("payment_code_required", False))
             payment_code = None
             if payment_required:
                 payment_code = st.text_input(
@@ -247,8 +250,12 @@ role = st.session_state.role
 
 logout_page = st.Page(logout, title="ログアウト / Log out", icon=":material/logout:")
 settings = st.Page("settings.py", title="設定 / Settings", icon=":material/settings:")
-showcase = st.Page("showcase.py", title="Demo / Showcase", icon=":material/visibility:")
-ui_preview = st.Page("ui_preview.py", title="UI Preview", icon=":material/palette:")
+showcase = st.Page(
+    "showcase.py",
+    title="Recruiter Tour",
+    icon=":material/tour:",
+    default=(role == "Select your role"),
+)
 
 participant = st.Page(
     "participant/participant_1.py",
@@ -321,7 +328,10 @@ if len(page_dict) > 0:
     pg = st.navigation({"Account": account_pages} | page_dict)
 else:
     pg = st.navigation(
-        [st.Page(login, title="MeetupOps", icon=":material/login:"), ui_preview, showcase]
+        [
+            showcase,
+            st.Page(login, title="Staff / Participant Login", icon=":material/login:"),
+        ]
     )
 
 pg.run()

@@ -1,191 +1,203 @@
+"""Public, read-only product tour for recruiters and portfolio reviewers."""
+
+from __future__ import annotations
+
 import random
 
 import streamlit as st
 
 from data.data_structure import Participant
-from data.logic import assign_tables, assign_tables_debug
+from data.logic import assign_tables
 
 
-st.set_page_config(page_title="Demo / Showcase", page_icon="🧪", layout="wide")
-
-st.title("🧪 Demo / Showcase")
-st.caption(
-    "This is a public, read-only demo page. No password, no one-time payment code, and no database writes."
-)
-
-st.divider()
-
-st.subheader("Table assignment simulator (local only)")
-st.caption("Generates fake participants in memory and runs the same assignment algorithm used in the app.")
-
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    total = st.number_input("Total participants", min_value=2, max_value=200, value=40, step=1)
-with col2:
-    max_per_table = st.number_input("Max per table", min_value=2, max_value=10, value=4, step=1)
-with col3:
-    min_per_table = st.number_input(
-        "Min per table",
-        min_value=1,
-        max_value=int(max_per_table),
-        value=min(2, int(max_per_table)),
-        step=1,
-    )
-with col4:
-    rounds = st.number_input("Rounds", min_value=1, max_value=10, value=3, step=1)
-
-st.caption("Language distribution (counts)")
-col_en, col_jp, col_seed = st.columns(3)
-with col_en:
-    n_en = st.number_input("English count", min_value=0, max_value=int(total), value=int(total // 2), step=1)
-with col_jp:
-    n_jp = st.number_input(
-        "Japanese count",
-        min_value=0,
-        max_value=int(total),
-        value=int(total) - int(n_en),
-        step=1,
-    )
-with col_seed:
-    seed = st.number_input("Random seed", min_value=0, max_value=999999, value=1, step=1)
-
-if int(n_en) + int(n_jp) != int(total):
-    st.error("Count mismatch: English + Japanese must equal Total participants.")
-    st.stop()
-
-show_process = st.checkbox("Show process snapshots (best-effort)", value=True)
-show_debug_json = st.checkbox("Show debug JSON (can be large)", value=False)
-
-run = st.button("Run demo", type="primary", width="stretch")
+st.set_page_config(page_title="MeetupOps | Recruiter Tour", page_icon="🤝", layout="wide")
 
 
-def _met_before_ids(p: Participant) -> set[str]:
+DEMO_PARTICIPANTS = 24
+DEMO_ROUNDS = 3
+DEMO_TABLE_SIZE = 4
+
+
+def _met_before_ids(participant: Participant) -> set[str]:
     met: set[str] = set()
-    for e in p.history or []:
-        if isinstance(e, dict) and isinstance(e.get("mates"), list):
-            for mid in e["mates"]:
-                if isinstance(mid, str) and mid:
-                    met.add(mid)
-    met.discard(p.id)
+    for entry in participant.history or []:
+        if not isinstance(entry, dict):
+            continue
+        for participant_id in entry.get("mates", []):
+            if isinstance(participant_id, str) and participant_id:
+                met.add(participant_id)
+    met.discard(participant.id)
     return met
 
 
-def _summarize_tables(updated: list[Participant]):
+def _group_by_table(participants: list[Participant]) -> dict[str, list[Participant]]:
     tables: dict[str, list[Participant]] = {}
-    for p in updated:
-        tables.setdefault(str(p.table_number), []).append(p)
-    sizes = [len(v) for v in tables.values()]
-    mixed = 0
-    for plist in tables.values():
-        has_en = any("English" in str(p.language) for p in plist)
-        has_jp = any("Japanese" in str(p.language) for p in plist)
-        if has_en and has_jp:
-            mixed += 1
-    return tables, sizes, mixed
+    for participant in participants:
+        tables.setdefault(str(participant.table_number), []).append(participant)
+    return tables
 
 
-def _repeat_pairs_against_prev(tables: dict[str, list[Participant]], prev_met_map: dict[str, set[str]]) -> int:
-    repeat_pairs = 0
-    for plist in tables.values():
-        ids = [p.id for p in plist]
-        for i in range(len(ids)):
-            for j in range(i + 1, len(ids)):
-                a, b = ids[i], ids[j]
-                if b in prev_met_map.get(a, set()) or a in prev_met_map.get(b, set()):
-                    repeat_pairs += 1
-    return repeat_pairs
+def _count_repeat_pairs(
+    tables: dict[str, list[Participant]], previous_mates: dict[str, set[str]]
+) -> int:
+    repeats = 0
+    for table in tables.values():
+        participant_ids = [participant.id for participant in table]
+        for index, first_id in enumerate(participant_ids):
+            for second_id in participant_ids[index + 1 :]:
+                if second_id in previous_mates.get(first_id, set()):
+                    repeats += 1
+    return repeats
 
 
-if run:
-    rng = random.Random(int(seed))
-    langs = (["English"] * int(n_en)) + (["Japanese"] * int(n_jp))
-    rng.shuffle(langs)
+@st.cache_data(show_spinner=False)
+def build_demo(seed: int = 7) -> tuple[list[dict], list[dict[str, list[dict]]]]:
+    """Run the production assignment algorithm entirely in memory."""
+    random.seed(seed)
+    languages = ["English"] * (DEMO_PARTICIPANTS // 2) + ["Japanese"] * (
+        DEMO_PARTICIPANTS // 2
+    )
+    random.shuffle(languages)
+    participants = [
+        Participant(name=f"Guest {index + 1}", language=language)
+        for index, language in enumerate(languages)
+    ]
 
-    participants = [Participant(name=f"User{i+1}", language=lang) for i, lang in enumerate(langs)]
-
-    round_summaries: list[dict] = []
-    round_tables: list[dict[str, list[Participant]]] = []
-    round_phases: list[dict | None] = []
-
-    dbg = None
-    for r in range(1, int(rounds) + 1):
-        prev_met_map = {p.id: _met_before_ids(p) for p in participants}
-
-        if show_debug_json and r == 1:
-            updated, num_tables, dbg = assign_tables_debug(
-                participants, max_per_table=int(max_per_table), min_per_table=int(min_per_table)
-            )
-        else:
-            updated, num_tables = assign_tables(
-                participants,
-                target_per_table=int(max_per_table),
-                min_per_table=int(min_per_table),
-            )
-
-        tables, sizes, mixed = _summarize_tables(updated)
-        repeats = _repeat_pairs_against_prev(tables, prev_met_map)
-
-        round_summaries.append(
+    summaries: list[dict] = []
+    rounds: list[dict[str, list[dict]]] = []
+    for round_number in range(1, DEMO_ROUNDS + 1):
+        previous_mates = {
+            participant.id: _met_before_ids(participant) for participant in participants
+        }
+        participants, _ = assign_tables(
+            participants,
+            target_per_table=DEMO_TABLE_SIZE,
+            min_per_table=2,
+        )
+        tables = _group_by_table(participants)
+        mixed_tables = sum(
+            1
+            for table in tables.values()
+            if {participant.language for participant in table}
+            == {"English", "Japanese"}
+        )
+        summaries.append(
             {
-                "round": r,
-                "tables": int(num_tables),
-                "min_size": min(sizes) if sizes else 0,
-                "max_size": max(sizes) if sizes else 0,
-                "mixed_tables(en+jp)": int(mixed),
-                "repeat_pairs_vs_previous": int(repeats),
+                "Round": round_number,
+                "Tables": len(tables),
+                "Language-balanced tables": mixed_tables,
+                "Repeated pairs": _count_repeat_pairs(tables, previous_mates),
             }
         )
-        round_tables.append(tables)
+        rounds.append(
+            {
+                table_number: [
+                    {"Name": participant.name, "Language": participant.language}
+                    for participant in table
+                ]
+                for table_number, table in tables.items()
+            }
+        )
+    return summaries, rounds
 
-        if show_process:
-            try:
-                import data.logic as logic_mod
 
-                phase_dbg = getattr(logic_mod, "_LAST_ASSIGN_DEBUG", None)
-                round_phases.append(phase_dbg if isinstance(phase_dbg, dict) else None)
-            except Exception:
-                round_phases.append(None)
+st.title("MeetupOps")
+st.subheader("A real-time operations platform for multilingual community events")
+st.caption(
+    "Portfolio demo · No login required · Uses the production assignment algorithm · "
+    "Does not write to the database"
+)
 
-    st.success(f"Done: {len(participants)} participants, {int(rounds)} rounds.")
+st.info(
+    "**Reviewer shortcut:** this page tells the complete story in about two minutes. "
+    "Use **Staff / Participant Login** in the sidebar only if you want to explore the live workflows."
+)
 
-    st.subheader("Per-round summary")
-    st.dataframe(round_summaries, width="stretch", hide_index=True)
+st.markdown("### The problem and the product")
+problem_col, product_col = st.columns(2)
+with problem_col:
+    with st.container(border=True):
+        st.markdown("#### Before")
+        st.write(
+            "Event staff coordinate payment, check-in, table allocation, round changes, "
+            "and activities across separate spreadsheets and chat messages."
+        )
+with product_col:
+    with st.container(border=True):
+        st.markdown("#### With MeetupOps")
+        st.write(
+            "Participants, front-desk staff, and organizers use role-specific views backed "
+            "by one shared Firestore event state."
+        )
 
-    if show_debug_json and dbg:
-        st.divider()
-        st.subheader("Round 1 debug (optional)")
-        st.caption("Only shows Round 1 to avoid heavy payloads.")
-        st.json(dbg.get("inputs"))
-        st.json(dbg.get("result"))
+st.markdown("### One event, three connected experiences")
+participant_col, cashier_col, organizer_col = st.columns(3)
+with participant_col:
+    with st.container(border=True):
+        st.markdown("#### 🙋 Participant")
+        st.write("1. Enter name and language")
+        st.write("2. Receive a live table assignment")
+        st.write("3. Join synchronized table activities")
+with cashier_col:
+    with st.container(border=True):
+        st.markdown("#### 💳 Front desk")
+        st.write("1. Assist check-in without a device")
+        st.write("2. Optionally issue payment codes")
+        st.write("3. Resolve participant status quickly")
+with organizer_col:
+    with st.container(border=True):
+        st.markdown("#### 🎛️ Organizer")
+        st.write("1. Configure and start each round")
+        st.write("2. Monitor attendance and table balance")
+        st.write("3. Override assignments when needed")
 
-    st.divider()
-    st.subheader("Per-round tables")
-    for r in range(1, int(rounds) + 1):
-        tables = round_tables[r - 1]
-        with st.expander(f"Round {r} - tables={len(tables)}", expanded=False):
-            for tno in sorted(tables.keys(), key=lambda x: int(x)):
-                plist = tables[tno]
-                has_en = any("English" in str(p.language) for p in plist)
-                has_jp = any("Japanese" in str(p.language) for p in plist)
-                st.markdown(f"**Table {tno}** | size={len(plist)} | EN={has_en} JP={has_jp}")
-                st.write([{"name": p.name, "language": p.language} for p in plist])
+st.markdown("### Live assignment simulation")
+st.write(
+    "The sample below seats 24 fictional guests across three rounds. It prioritizes "
+    "English/Japanese balance and reduces repeat meetings."
+)
 
-    if show_process:
-        st.divider()
-        st.subheader("Process snapshots (by round)")
-        for r in range(1, int(rounds) + 1):
-            phase_dbg = round_phases[r - 1] if r - 1 < len(round_phases) else None
-            if not phase_dbg:
-                continue
-            with st.expander(f"Round {r} snapshots", expanded=False):
-                for ph in phase_dbg.get("phases", []) or []:
-                    with st.expander(ph.get("name", "phase"), expanded=False):
-                        st.json(ph.get("tables"))
+summaries, demo_rounds = build_demo()
+metric_1, metric_2, metric_3, metric_4 = st.columns(4)
+metric_1.metric("Participants", DEMO_PARTICIPANTS)
+metric_2.metric("Rounds", DEMO_ROUNDS)
+metric_3.metric("Tables per round", summaries[0]["Tables"])
+metric_4.metric(
+    "Balanced tables",
+    f'{summaries[-1]["Language-balanced tables"]}/{summaries[-1]["Tables"]}',
+)
 
-                placements = phase_dbg.get("placements", []) or []
-                if placements:
-                    st.subheader("Placement log (repeat cost)")
-                    st.write(placements[:200])
-                    if len(placements) > 200:
-                        st.caption(f"Showing first 200 rows out of {len(placements)}.")
+st.dataframe(summaries, hide_index=True, width="stretch")
 
+round_tabs = st.tabs([f"Round {round_number}" for round_number in range(1, DEMO_ROUNDS + 1)])
+for round_index, round_tab in enumerate(round_tabs):
+    with round_tab:
+        tables = demo_rounds[round_index]
+        table_columns = st.columns(3)
+        for table_index, table_number in enumerate(
+            sorted(tables, key=lambda value: int(value))
+        ):
+            with table_columns[table_index % 3]:
+                with st.container(border=True):
+                    st.markdown(f"**Table {table_number}**")
+                    for guest in tables[table_number]:
+                        language_icon = "🇬🇧" if guest["Language"] == "English" else "🇯🇵"
+                        st.write(f'{language_icon} {guest["Name"]}')
+
+with st.expander("Technical notes for reviewers"):
+    st.markdown(
+        """
+- **Frontend:** Streamlit multi-role application with English/Japanese copy
+- **Backend:** Firebase Admin SDK and Cloud Firestore shared event state
+- **Core logic:** multi-round table assignment with capacity, language balance, and meeting-history constraints
+- **Security:** runtime secrets, signed staff cookies, ignored service-account files, and cleaned Git history
+- **Deployment:** Streamlit Community Cloud with a public read-only portfolio path
+
+The simulation above calls the same assignment function as the live organizer workflow, but uses only fictional in-memory data.
+"""
+    )
+
+st.success(
+    "Want to inspect the real app? Choose **Staff / Participant Login** in the sidebar. "
+    "Admin and Cashier demo password: **123456**. Participant login does not require a code."
+)

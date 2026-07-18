@@ -95,7 +95,7 @@ if start_btn:
     if total_count < min_per_table:
         st.error("Not enough people to start a round!")
     else:
-        with st.spinner(f"Allocating people into tables..."):
+        with st.spinner("Allocating people into tables..."):
             start_next_round(
                 target_per_table=target_per_table,
                 min_per_table=min_per_table,
@@ -205,7 +205,7 @@ st.subheader("💳 Payment Code Requirement")
 st.caption("Control whether participants must enter a one-time payment code to check in. / 支払いコード必須を切り替え。")
 
 state = get_event_state()
-payment_required = bool(state.get("payment_code_required", True))
+payment_required = bool(state.get("payment_code_required", False))
 
 col_pay1, col_pay2 = st.columns([0.45, 0.55], vertical_alignment="center")
 with col_pay1:

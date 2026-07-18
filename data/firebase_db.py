@@ -127,9 +127,8 @@ def get_event_state():
             "last_cleanup_date": None,
             "payment_codes_total": 0,
             "payment_codes_unused": 0,
-            # Participant payment gate (one-time payment code).
-            # If True, participant login requires a valid unused payment code unless already paid today.
-            "payment_code_required": True,
+            # Optional payment gate. Disabled by default for the public portfolio demo.
+            "payment_code_required": False,
         }
     data = doc.to_dict() or {}
     data.setdefault("started", False)
@@ -142,7 +141,7 @@ def get_event_state():
     data.setdefault("last_cleanup_date", None)
     data.setdefault("payment_codes_total", 0)
     data.setdefault("payment_codes_unused", 0)
-    data.setdefault("payment_code_required", True)
+    data.setdefault("payment_code_required", False)
     return data
 
 def set_event_state(state: dict):
@@ -642,7 +641,7 @@ def checkin_with_optional_payment_code(id: str | None, name: str, language: str,
         state = get_event_state()
     except Exception:
         state = {}
-    payment_required = bool(state.get("payment_code_required", True))
+    payment_required = bool(state.get("payment_code_required", False))
     if not payment_required:
         # check-in (create or update participant)
         if existing:
