@@ -1,6 +1,9 @@
 import streamlit as st
 import math
 import time
+from datetime import datetime
+
+import pytz
 from data.firebase_db import (
     get_active_participants,
     start_next_round,
@@ -11,6 +14,41 @@ from data.firebase_db import (
     set_event_state,
     admin_override_participant_table,
 )
+
+tz = pytz.timezone("Pacific/Auckland")
+
+
+@st.fragment(run_every=5)
+def render_event_status():
+    """Always-visible event status: round, timer, headcount."""
+    state = get_event_state()
+    participants = get_active_participants()
+    round_no = int(state.get("current_round") or 0)
+    started_at = state.get("round_started_at")
+    duration_min = int(state.get("round_duration_min") or 0)
+
+    timer_text = "Not started / 未開始"
+    if started_at:
+        try:
+            started_dt = datetime.fromisoformat(started_at)
+            if started_dt.tzinfo is None:
+                started_dt = started_dt.replace(tzinfo=tz)
+            elapsed = (datetime.now(tz=started_dt.tzinfo) - started_dt).total_seconds()
+            remaining = max(0, int(duration_min * 60 - elapsed))
+            if remaining > 0:
+                timer_text = f"{remaining // 60}:{remaining % 60:02d} left"
+            else:
+                timer_text = "Time's up / 終了"
+        except Exception:
+            pass
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Round", round_no if round_no else "—")
+    with col2:
+        st.metric("⏱️ Timer", timer_text)
+    with col3:
+        st.metric("Checked in", len(participants))
 
 
 @st.fragment(run_every=30)
@@ -23,23 +61,17 @@ def render_participant_status(target_per_table):
     else:
         st.info(f"✅ **{total_count}** participants are ready.")
 
-    suggested_tables = math.ceil(total_count / target_per_table)
-    if suggested_tables > 1:
-        st.markdown(
-        f"""
-        > 💡 **Logic Check:** > {total_count} people ÷ {target_per_table} per table ≈ **{math.ceil(total_count / target_per_table)} tables**.  
-        """
-        )
-    else:
-        st.markdown(
-        f"""
-        > 💡 **Logic Check:** > {total_count} people ÷ {target_per_table} per table ≈ **1 table**.  
-        """
-        )
+    suggested_tables = max(1, math.ceil(total_count / target_per_table))
+    st.markdown(
+        f"> 💡 **Logic Check:** {total_count} people ÷ {target_per_table} per table "
+        f"≈ **{suggested_tables} table{'s' if suggested_tables > 1 else ''}**."
+    )
 
 
 st.title("🎮 Event Operations")
 st.caption("Setup the rules and control the flow.")
+
+render_event_status()
 
 participants = get_active_participants()
 total_count = len(participants)
@@ -60,11 +92,6 @@ with col1:
     )
 
 with col2:
-    if total_count > 0:
-        suggested_tables = math.ceil(total_count / target_per_table)
-    else:
-        suggested_tables = 1
-        
     min_per_table = st.number_input(
         "Min People Per Table",
         min_value=1,
@@ -88,8 +115,14 @@ st.divider()
 
 st.subheader("🚀 Actions")
 
+auto_timer = st.checkbox(
+    "Start timer automatically / タイマーも同時に開始",
+    value=True,
+    help="Starts the round timer right after tables are assigned.",
+)
 start_btn = st.button("Start Next Round 🎲", type="primary", width="stretch")
-timer_btn = st.button("Start Timer ⏱️", type="secondary", width="stretch")
+timer_btn = st.button("Start Timer ⏱️", type="secondary", width="stretch",
+                      help="Manual start/restart, e.g. if you skipped auto-start.")
 
 if start_btn:
     if total_count < min_per_table:
@@ -100,12 +133,13 @@ if start_btn:
                 target_per_table=target_per_table,
                 min_per_table=min_per_table,
             )
-            # time.sleep(1)
-        
+        if auto_timer:
+            start_round_timer(round_duration_min)
+
         st.session_state.started = True
 
-        st.success("✅ Round Started! Participants can now see their tables.")
-        time.sleep(4)
+        st.success("✅ Round started! Participants can now see their tables.")
+        time.sleep(2)
         st.rerun()
 
 if timer_btn:
@@ -123,11 +157,6 @@ st.caption(
     "Move a participant to a specific table now. Table options are existing tables + one new table (max+1). "
     "This does NOT affect next round assignment."
 )
-
-state_now = get_event_state()
-round_no = int(state_now.get("current_round") or 0)
-started_now = bool(state_now.get("started"))
-st.caption(f"Round={round_no} | Started={started_now}")
 
 if not participants:
     st.info("No active participants yet.")
@@ -188,17 +217,6 @@ with st.form("manual_checkin_form"):
             table_info = user.table_number or "-"
             st.success(f"Added {user.name}. Table: {table_info}")
 
-st.write("")
-st.write("")
-with st.expander("⚠️ Danger Zone (Reset)"):
-    st.warning("This will clear all table assignments. Use only at the start of a new event.")
-    if st.button("Reset Entire Event", type="secondary"):
-        reset_event()
-        st.session_state.started = False
-        st.toast("Event has been reset.", icon="🔥")
-        time.sleep(2)
-        st.rerun()
-
 st.divider()
 
 st.subheader("💳 Payment Code Requirement")
@@ -221,3 +239,17 @@ if st.button("Save / 保存", type="primary", width="stretch"):
     st.toast("Saved / 保存しました", icon="✅")
     time.sleep(0.6)
     st.rerun()
+
+st.divider()
+
+with st.expander("⚠️ Danger Zone (Reset)"):
+    st.warning("This will clear all table assignments and rounds. Use only at the start of a new event.")
+    confirm_reset = st.checkbox(
+        "I understand this resets the whole event. / イベント全体をリセットすることを理解しました。"
+    )
+    if st.button("Reset Entire Event", type="secondary", disabled=not confirm_reset):
+        reset_event()
+        st.session_state.started = False
+        st.toast("Event has been reset.", icon="🔥")
+        time.sleep(2)
+        st.rerun()

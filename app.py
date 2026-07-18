@@ -359,14 +359,14 @@ participant_activity = st.Page(
 
 admin_1 = st.Page(
     "admin/admin_1.py",
-    title="Admin 1",
-    icon=":material/person_add:",
+    title="Event Operations",
+    icon=":material/tune:",
     default=(role == "Admin"),
 )
 admin_2 = st.Page(
     "admin/admin_2.py",
-    title="Admin 2",
-    icon=":material/security:")
+    title="Live Dashboard",
+    icon=":material/monitoring:")
 admin_simulate = st.Page(
     "admin/simulate.py",
     title="Simulator / テスト",

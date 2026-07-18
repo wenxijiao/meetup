@@ -1,5 +1,3 @@
-import random
-from datetime import datetime
 
 import pytz
 import streamlit as st
@@ -176,9 +174,14 @@ else:
                         st.caption("同じテーブルの人は同じ活動が表示されます。 / Same table sees the same activity.")
                         # st.caption("Same table sees the same activity.")
                     with top_r:
-                        if st.button("ゲーム変更 / Switch game", width="stretch", type="primary"):
-                            switch_table_activity(round_no, str(table_number), current_participant.id)
-                            st.rerun()
+                        with st.popover("ゲーム変更 / Switch game", width="stretch"):
+                            st.caption(
+                                "同じテーブル全員のゲームが変わります。 "
+                                "/ This switches the game for your whole table."
+                            )
+                            if st.button("変更する / Yes, switch", type="primary", width="stretch"):
+                                switch_table_activity(round_no, str(table_number), current_participant.id)
+                                st.rerun()
 
                     st.divider()
 

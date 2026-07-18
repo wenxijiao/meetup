@@ -64,9 +64,9 @@ st.caption(
 )
 link_col1, link_col2 = st.columns(2)
 with link_col1:
-    st.page_link("admin/admin_1.py", label="Event Operations", icon=":material/person_add:")
+    st.page_link("admin/admin_1.py", label="Event Operations", icon=":material/tune:")
 with link_col2:
-    st.page_link("admin/admin_2.py", label="Live Dashboard", icon=":material/security:")
+    st.page_link("admin/admin_2.py", label="Live Dashboard", icon=":material/monitoring:")
 
 st.subheader("3. View as a test participant / 参加者ビュー")
 if not active_test_users:
