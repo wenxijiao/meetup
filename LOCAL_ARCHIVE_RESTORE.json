@@ -1,0 +1,14 @@
+{
+  "archived_on": "2026-10-18",
+  "original_path": "/Users/vincent/Desktop/Projects/AppDev/Streamlit/meetup",
+  "repository": "wenxijiao/meetup",
+  "original_head": "b096d44a96ba0f304f609b04e91425465fc50b44",
+  "refs": {
+    "refs/heads/archive/local-cleanup-2026-10-18/branches/codex/migration-20260921/saved-branches/main": "b096d44a96ba0f304f609b04e91425465fc50b44",
+    "refs/heads/archive/local-cleanup-2026-10-18/branches/codex/migration-20260921/snapshot": "b096d44a96ba0f304f609b04e91425465fc50b44",
+    "refs/heads/archive/local-cleanup-2026-10-18/branches/main": "b096d44a96ba0f304f609b04e91425465fc50b44"
+  },
+  "stashes": {},
+  "recovered_ignored_source_files": [],
+  "note": "Local environment secrets and private original media are preserved separately on the owner computer."
+}
